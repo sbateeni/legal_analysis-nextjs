@@ -252,7 +252,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const analysis = await callGeminiAPI(prompt, apiKey);
     return res.status(200).json({ stage, analysis });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message || 'حدث خطأ أثناء التحليل' });
+  } catch (error: unknown) {
+    let message = 'حدث خطأ أثناء التحليل';
+    if (error && typeof error === 'object' && 'message' in error) {
+      message = (error as { message: string }).message;
+    }
+    return res.status(500).json({ error: message });
   }
 } 

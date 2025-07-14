@@ -62,10 +62,10 @@ export default function About() {
           </div>
           <ol style={{ fontSize: 17, marginBottom: 18, lineHeight: 2, paddingRight: 24, background: darkMode ? '#181a2a' : '#f5f7ff', borderRadius: 12, padding: '18px 18px 18px 8px', border: `1px solid ${theme.border}` }}>
             <li>احصل على مفتاح Gemini API الخاص بك من <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{color:theme.accent, textDecoration:'underline'}}>Google AI Studio</a>.</li>
-            <li>أدخل المفتاح في خانة "مفتاح Gemini API" في الصفحة الرئيسية.</li>
+            <li>أدخل المفتاح في خانة &quot;مفتاح Gemini API&quot; في الصفحة الرئيسية.</li>
             <li>أدخل النص القانوني الذي ترغب في تحليله.</li>
             <li>اختر المرحلة التحليلية المناسبة.</li>
-            <li>اضغط على "ابدأ التحليل" وستظهر لك النتيجة خلال ثوانٍ.</li>
+            <li>اضغط على &quot;ابدأ التحليل&quot; وستظهر لك النتيجة خلال ثوانٍ.</li>
           </ol>
           <div style={{margin:'32px 0 18px 0', display:'flex', alignItems:'center', gap:8}}>
             <span style={{fontSize:22}}>📋</span>

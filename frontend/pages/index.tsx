@@ -106,7 +106,7 @@ export default function Home() {
       } else {
         setError(data.error || 'حدث خطأ أثناء التحليل');
       }
-    } catch (err) {
+    } catch {
       setError('تعذر الاتصال بالخادم');
     } finally {
       setLoading(false);
