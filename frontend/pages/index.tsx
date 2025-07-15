@@ -204,49 +204,51 @@ export default function Home() {
           يرجى تجربة متصفح آخر أو الخروج من وضع التصفح الخاص.
         </div>
       )}
-      {/* شريط علوي */}
+      {/* شريط علوي جديد */}
       <header style={{
         width: '100%',
         background: `linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`,
         color: '#fff',
-        padding: '18px 0 12px 0',
+        padding: isMobile() ? '16px 0 10px 0' : '18px 0 12px 0',
         marginBottom: 32,
         boxShadow: '0 2px 8px #0002',
         textAlign: 'center',
         letterSpacing: 1,
         fontWeight: 800,
-        fontSize: 26,
+        fontSize: isMobile() ? 22 : 26,
         borderBottomLeftRadius: 18,
         borderBottomRightRadius: 18,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 12,
+        display: 'block',
         position: 'relative',
       }}>
-        <span style={{fontSize: 30}}>⚖️</span>
-        <span>منصة التحليل القانوني الذكي</span>
-        {/* زر الوضع الليلي */}
-        <button
-          onClick={() => setDarkMode(dm => !dm)}
-          style={{
-            position: 'absolute', left: 18, top: 14, background: 'none', border: 'none', cursor: 'pointer', fontSize: 26, color: '#fff', outline: 'none',
-            transition: 'color 0.2s',
-          }}
-          aria-label="تبديل الوضع الليلي"
-        >
-          {darkMode ? '🌙' : '☀️'}
-        </button>
-        {/* رابط صفحة التعليمات */}
-        <Link href="/about" style={{
-          position: 'absolute', right: 18, top: 18, color: '#fff', background: '#4f46e5cc', borderRadius: 8, padding: '4px 14px', fontWeight: 700, fontSize: 16, textDecoration: 'none', boxShadow: '0 1px 4px #0002', letterSpacing: 1, transition: 'background 0.2s',
-        }}>؟ تعليمات</Link>
-        {/* رابط سجل التحليل */}
-        <Link href="/history" style={{
-          position: 'absolute', right: 120, top: 18, color: '#fff', background: '#6366f1cc', borderRadius: 8, padding: '4px 14px', fontWeight: 700, fontSize: 16, textDecoration: 'none', boxShadow: '0 1px 4px #0002', letterSpacing: 1, transition: 'background 0.2s',
-        }}>📑 السجل</Link>
-        {/* بيانات المستخدم أو زر تسجيل الدخول/الخروج */}
-        {/* إزالة كود متعلق بالجلسة */}
+        <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap: isMobile() ? 10 : 14}}>
+          <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:12}}>
+            <span style={{fontSize: isMobile() ? 26 : 30}}>⚖️</span>
+            <span>منصة التحليل القانوني الذكي</span>
+          </div>
+          <div style={{display:'flex', flexDirection:'row', alignItems:'center', justifyContent:'center', gap:isMobile() ? 8 : 18, marginTop: isMobile() ? 2 : 6}}>
+            {/* زر الوضع الليلي */}
+            <button
+              onClick={() => setDarkMode(dm => !dm)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', fontSize: isMobile() ? 22 : 26, color: '#fff', outline: 'none',
+                transition: 'color 0.2s',
+                padding: 0,
+              }}
+              aria-label="تبديل الوضع الليلي"
+            >
+              {darkMode ? '🌙' : '☀️'}
+            </button>
+            {/* رابط صفحة التعليمات */}
+            <Link href="/about" style={{
+              color: '#fff', background: '#4f46e5cc', borderRadius: 8, padding: isMobile() ? '4px 10px' : '4px 14px', fontWeight: 700, fontSize: isMobile() ? 14 : 16, textDecoration: 'none', boxShadow: '0 1px 4px #0002', letterSpacing: 1, transition: 'background 0.2s',
+            }}>؟ تعليمات</Link>
+            {/* رابط سجل التحليل */}
+            <Link href="/history" style={{
+              color: '#fff', background: '#6366f1cc', borderRadius: 8, padding: isMobile() ? '4px 10px' : '4px 14px', fontWeight: 700, fontSize: isMobile() ? 14 : 16, textDecoration: 'none', boxShadow: '0 1px 4px #0002', letterSpacing: 1, transition: 'background 0.2s',
+            }}>📑 السجل</Link>
+          </div>
+        </div>
       </header>
       {/* إذا لم يكن المستخدم مسجلاً، عرض رسالة ترحيبية فقط */}
       {/* إزالة كود متعلق بالجلسة */}
