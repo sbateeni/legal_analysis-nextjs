@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@vercel/blob": "^1.1.1",
+    "crypto-js": "^4.2.0"
+  }
+}

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSession, signIn } from "next-auth/react";
 
 const STAGES = [
   'المرحلة الأولى: تحديد المشكلة القانونية',
@@ -45,6 +46,7 @@ type AnalysisHistoryItem = {
 };
 
 export default function History() {
+  const { data: session, status } = useSession();
   const [darkMode, setDarkMode] = useState(false);
   const theme = darkMode ? darkTheme : lightTheme;
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
@@ -63,6 +65,25 @@ export default function History() {
   const handleDelete = (id: string) => {
     setHistory(h => h.filter(item => item.id !== id));
   };
+
+  if (status !== 'loading' && !session) {
+    return (
+      <div style={{ fontFamily: 'Tajawal, Arial, sans-serif', direction: 'rtl', minHeight: '100vh', background: lightTheme.background, color: lightTheme.text, padding: 0, margin: 0, transition: 'background 0.4s' }}>
+        <main style={{ maxWidth: 500, margin: '0 auto', padding: '2.5rem 1rem', textAlign: 'center' }}>
+          <div style={{ background: lightTheme.card, borderRadius: 18, boxShadow: `0 2px 12px ${lightTheme.shadow}`, padding: 32, border: `1.5px solid ${lightTheme.border}` }}>
+            <span style={{ fontSize: 44 }}>⚖️</span>
+            <h1 style={{ color: lightTheme.accent, fontWeight: 900, fontSize: 30, margin: '18px 0 10px 0', letterSpacing: 1 }}>سجل التحليل</h1>
+            <p style={{ fontSize: 18, color: lightTheme.text, marginBottom: 18, lineHeight: 2 }}>
+              يجب تسجيل الدخول بحساب Google للاطلاع على سجل تحليلاتك القانونية.
+            </p>
+            <button onClick={() => signIn('google')} style={{ background: lightTheme.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 32px', fontWeight: 800, fontSize: 20, cursor: 'pointer', boxShadow: `0 2px 8px ${lightTheme.accent}33`, marginTop: 10 }}>
+              <span style={{ fontSize: 24, marginLeft: 8 }}>🔑</span> تسجيل الدخول بحساب Google
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily: 'Tajawal, Arial, sans-serif', direction: 'rtl', minHeight: '100vh', background: theme.background, color: theme.text, padding: 0, margin: 0, transition: 'background 0.4s' }}>
