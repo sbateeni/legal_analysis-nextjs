@@ -55,6 +55,14 @@ interface Case {
   stages: AnalysisHistoryItem[];
 }
 
+// تعريف نوع جديد للمحادثة
+interface ChatMessage {
+  id: string;
+  question: string;
+  answer: string;
+  date: string;
+}
+
 function isMobile() {
   if (typeof window === 'undefined') return false;
   return window.innerWidth <= 600;
@@ -67,6 +75,8 @@ export default function History() {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [editNameId, setEditNameId] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState<string>('');
+  // بحث عن القضايا
+  const [search, setSearch] = useState('');
   // إضافة مرحلة جديدة
   const [addStageId, setAddStageId] = useState<string | null>(null);
   const [newStageIndex, setNewStageIndex] = useState<number>(0);
@@ -80,7 +90,8 @@ export default function History() {
     // جلب القضايا من IndexedDB فقط
     loadCases().then(dbCases => {
       if (dbCases && dbCases.length > 0) {
-        setCases(dbCases);
+        // تأكد أن كل قضية تحتوي على مصفوفة chats
+        setCases(dbCases.map(c => ({ ...c, chats: c.chats || [] })));
       } else {
         // تحويل البيانات القديمة (مرة واحدة فقط)
         const savedHistory = typeof window !== 'undefined' ? localStorage.getItem('legal_analysis_history') : null;
@@ -166,13 +177,14 @@ export default function History() {
         margin: '0 auto',
         padding: isMobile() ? '1rem 0.5rem' : '2.5rem 1rem',
       }}>
-        {/* أزرار التصدير والاستيراد */}
-        <div style={{display:'flex', gap:12, justifyContent:'center', marginBottom:18}}>
-          <button onClick={handleExport} style={{background:theme.accent, color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:15, cursor:'pointer', boxShadow:'0 1px 4px #4f46e522'}}>⬇️ تصدير القضايا</button>
-          <label style={{background:theme.accent2, color:'#fff', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:15, cursor:'pointer', boxShadow:'0 1px 4px #6366f122', display:'inline-block'}}>
+        {/* أزرار التصدير والاستيراد + البحث */}
+        <div style={{display:'flex', flexDirection: isMobile() ? 'column' : 'row', gap:14, justifyContent:'center', alignItems:'center', marginBottom:18}}>
+          <button onClick={handleExport} style={{background:`linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color:'#fff', border:'none', borderRadius:8, padding:'10px 22px', fontWeight:800, fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px #4f46e522', letterSpacing:1, transition:'background 0.2s'}}>⬇️ تصدير القضايا</button>
+          <label style={{background:`linear-gradient(90deg, ${theme.accent} 0%, ${theme.accent2} 100%)`, color:'#fff', borderRadius:8, padding:'10px 22px', fontWeight:800, fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px #6366f122', display:'inline-block', letterSpacing:1, transition:'background 0.2s'}}>
             ⬆️ استيراد قضايا
             <input type="file" accept="application/json" onChange={handleImport} style={{ display: 'none' }} />
           </label>
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 ابحث عن قضية..." style={{flex:1, minWidth:180, maxWidth:320, borderRadius:8, border:`1.5px solid ${theme.accent2}`, padding:'10px 14px', fontSize:15, outline:'none', background:darkMode?'#232946':'#fff', color:theme.text, boxShadow:'0 1px 4px #6366f122'}} />
         </div>
         <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:10, marginBottom:18}}>
           <span style={{fontSize:32}}>📑</span>
@@ -221,64 +233,8 @@ export default function History() {
                       <button onClick={() => handleDeleteStage(c.id, stage.id)} style={{position:'absolute', left:14, top:14, background:'#ff6b6b', color:'#fff', border:'none', borderRadius:8, padding:isMobile()?'4px 8px':'5px 12px', fontWeight:700, fontSize:isMobile()?12:14, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b33', transition:'background 0.2s'}}>حذف المرحلة</button>
                     </div>
                   ))}
-                  {/* إضافة مرحلة جديدة */}
-                  {addStageId === c.id ? (
-                    <form onSubmit={async e => {
-                      e.preventDefault();
-                      setAddingStage(true);
-                      // استدعاء API التحليل لإحضار المخرجات
-                      try {
-                        const res = await fetch('/api/analyze', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            text: newStageInput,
-                            stageIndex: newStageIndex,
-                            apiKey: (await (typeof window !== 'undefined' ? window.localStorage.getItem('gemini_api_key') : '')) || '',
-                          }),
-                        });
-                        const data = await res.json();
-                        if (res.ok) {
-                          setCases(cs => cs.map(cc => cc.id === c.id ? {
-                            ...cc,
-                            stages: [
-                              ...cc.stages,
-                              {
-                                id: Math.random().toString(36).slice(2),
-                                stageIndex: newStageIndex,
-                                stage: STAGES[newStageIndex],
-                                input: newStageInput,
-                                output: data.analysis,
-                                date: new Date().toISOString(),
-                              }
-                            ]
-                          } : cc));
-                          setAddStageId(null);
-                          setNewStageInput('');
-                        } else {
-                          alert(data.error || 'حدث خطأ أثناء التحليل');
-                        }
-                      } catch {
-                        alert('تعذر الاتصال بالخادم');
-                      } finally {
-                        setAddingStage(false);
-                      }
-                    }} style={{background:theme.resultBg, borderRadius:12, boxShadow:`0 1px 6px ${theme.shadow}`, border:`1px solid ${theme.border}`, padding:isMobile()?10:18, marginTop:8}}>
-                      <div style={{fontWeight:600, color:theme.accent, marginBottom:4}}>إضافة مرحلة جديدة:</div>
-                      <select value={newStageIndex} onChange={e => setNewStageIndex(Number(e.target.value))} style={{width:'100%', borderRadius:8, border:`1.5px solid ${theme.accent2}`, padding:10, fontSize:16, marginBottom:8}}>
-                        {STAGES.map((stage, idx) => (
-                          <option key={stage} value={idx}>{stage}</option>
-                        ))}
-                      </select>
-                      <textarea value={newStageInput} onChange={e => setNewStageInput(e.target.value)} rows={3} style={{width:'100%', borderRadius:8, border:`1.5px solid ${theme.accent2}`, padding:10, fontSize:16, marginBottom:8}} placeholder="أدخل نص المرحلة الجديدة..." required />
-                      <div style={{display:'flex', gap:8}}>
-                        <button type="submit" disabled={addingStage} style={{background:theme.accent2, color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:15, cursor:addingStage?'not-allowed':'pointer'}}>إضافة</button>
-                        <button type="button" onClick={() => setAddStageId(null)} style={{background:'#eee', color:theme.accent2, border:'none', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:15, cursor:'pointer'}}>إلغاء</button>
-                      </div>
-                    </form>
-                  ) : (
-                    <button onClick={() => {setAddStageId(c.id); setNewStageInput(''); setNewStageIndex(0);}} style={{background:theme.accent2, color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:15, cursor:'pointer', marginTop:8}}>+ إضافة مرحلة جديدة</button>
-                  )}
+                  {/* واجهة المحادثة */}
+                  <ChatBox caseObj={c} setCases={setCases} theme={theme} darkMode={darkMode} />
                 </div>
                 <button onClick={() => handleDeleteCase(c.id)} style={{marginTop:18, background:'#ff6b6b', color:'#fff', border:'none', borderRadius:8, padding:isMobile()?'7px 14px':'8px 22px', fontWeight:700, fontSize:isMobile()?14:16, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b33', transition:'background 0.2s'}}>حذف القضية</button>
               </div>
@@ -287,20 +243,85 @@ export default function History() {
         ) : (
           // عرض القضايا في مربعات
           <div style={{display:'flex', flexWrap:'wrap', gap:24, justifyContent:'center'}}>
-            {cases.map(c => (
+            {cases.filter(c => c.name.toLowerCase().includes(search.toLowerCase())).map(c => (
               <div key={c.id} style={{background:theme.card, borderRadius:16, boxShadow:`0 2px 12px ${theme.shadow}`, border:`1.5px solid ${theme.border}`, padding:isMobile()?12:24, width: isMobile() ? '100%' : 340, cursor:'pointer', transition:'box-shadow 0.2s', position:'relative'}} onClick={() => setSelectedCaseId(c.id)}>
                 <div style={{fontWeight:800, fontSize:20, color:theme.accent, marginBottom:8}}>{c.name}</div>
                 <div style={{fontSize:14, color:'#888', marginBottom:10}}>تاريخ الإنشاء: {new Date(c.createdAt).toLocaleString('ar-EG')}</div>
                 <div style={{fontSize:15, color:theme.accent2}}>عدد المراحل: {c.stages.length}</div>
-                <button onClick={e => {e.stopPropagation(); handleDeleteCase(c.id);}} style={{position:'absolute', left:18, top:18, background:'#ff6b6b', color:'#fff', border:'none', borderRadius:8, padding:isMobile()?'5px 10px':'6px 16px', fontWeight:700, fontSize:isMobile()?13:15, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b33', transition:'background 0.2s'}}>حذف</button>
+                <button onClick={e => {e.stopPropagation(); handleDeleteCase(c.id);}} style={{position:'absolute', left:18, top:18, background:`linear-gradient(90deg, #ff6b6b 0%, #ffb6b6 100%)`, color:'#fff', border:'none', borderRadius:8, padding:isMobile()?'7px 14px':'8px 18px', fontWeight:800, fontSize:isMobile()?14:16, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b33', transition:'background 0.2s'}}>حذف</button>
               </div>
             ))}
           </div>
         )}
         <div style={{ textAlign: 'center', color: theme.accent2, fontSize: 16, marginTop: 32 }}>
-          &larr; <Link href="/" style={{color:theme.accent, textDecoration:'underline', fontWeight:700}}>العودة للصفحة الرئيسية</Link>
+          <button onClick={()=>setSelectedCaseId(null)} style={{background:`linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color:'#fff', border:'none', borderRadius:8, padding:'8px 22px', fontWeight:800, fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px #6366f122', marginBottom:10, letterSpacing:1, transition:'background 0.2s'}}>← العودة للصفحة الرئيسية</button>
         </div>
       </main>
+    </div>
+  );
+}
+
+function ChatBox({ caseObj, setCases, theme, darkMode }: { caseObj: any, setCases: any, theme: any, darkMode: boolean }) {
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string|null>(null);
+  const [localApiKey, setLocalApiKey] = useState('');
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setLocalApiKey(window.localStorage.getItem('gemini_api_key') || '');
+    }
+  }, []);
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!input.trim()) return;
+    if (!localApiKey) { setError('يرجى إدخال مفتاح Gemini API في الصفحة الرئيسية أولاً.'); return; }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: input, stageIndex: 0, apiKey: localApiKey }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const newMsg = {
+          id: Math.random().toString(36).slice(2),
+          question: input,
+          answer: data.analysis,
+          date: new Date().toISOString(),
+        };
+        setCases((prev: any) => prev.map((c: any) => c.id === caseObj.id ? { ...c, chats: [...(c.chats||[]), newMsg] } : c));
+        setInput('');
+      } else {
+        setError(data.error || 'حدث خطأ أثناء التحليل');
+      }
+    } catch {
+      setError('تعذر الاتصال بالخادم');
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <div style={{marginTop:18, background:darkMode?'#181a2a':'#f5f7ff', borderRadius:12, border:`1px solid ${theme.border}`, padding:14}}>
+      <div style={{fontWeight:700, color:theme.accent, marginBottom:8, fontSize:16}}>💬 تحدث مع مخرجات القضية</div>
+      <form onSubmit={handleSend} style={{display:'flex', gap:8, marginBottom:10}}>
+        <input type="text" value={input} onChange={e => setInput(e.target.value)} placeholder="اكتب سؤالك أو استفسارك..." style={{flex:1, borderRadius:8, border:`1.5px solid ${theme.accent2}`, padding:10, fontSize:15, outline:'none', background:darkMode?'#232946':'#fff', color:theme.text}} disabled={loading} />
+        <button type="submit" disabled={loading || !input.trim()} style={{background:theme.accent2, color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:15, cursor:loading?'not-allowed':'pointer'}}>إرسال</button>
+      </form>
+      {error && <div style={{color:'#ff6b6b', fontWeight:700, marginBottom:8}}>{error}</div>}
+      <div style={{display:'flex', flexDirection:'column', gap:10, marginTop:8}}>
+        {(caseObj.chats||[]).length === 0 && <div style={{color:'#888', fontSize:14}}>لا توجد محادثات بعد.</div>}
+        {(caseObj.chats||[]).map((msg: ChatMessage) => (
+          <div key={msg.id} style={{background:darkMode?'#232946':'#fff', borderRadius:8, border:`1px solid ${theme.accent2}22`, padding:10}}>
+            <div style={{fontWeight:700, color:theme.accent2, marginBottom:4, fontSize:15}}>سؤالك:</div>
+            <div style={{marginBottom:6, fontSize:15}}>{msg.question}</div>
+            <div style={{fontWeight:700, color:theme.accent, marginBottom:4, fontSize:15}}>الرد:</div>
+            <div style={{fontSize:15, whiteSpace:'pre-line'}}>{msg.answer}</div>
+            <div style={{fontSize:12, color:'#888', marginTop:4}}>بتاريخ: {new Date(msg.date).toLocaleString('ar-EG')}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 } 

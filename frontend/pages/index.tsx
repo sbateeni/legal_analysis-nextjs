@@ -143,17 +143,8 @@ export default function Home() {
         } catch { cases = []; }
         const existingCaseIdx = cases.findIndex((c: { name: string }) => c.name === caseName);
         if (existingCaseIdx !== -1) {
-          // تحقق إذا كانت المرحلة موجودة مسبقاً (بنفس stageIndex)
-          const stages = cases[existingCaseIdx].stages;
-          const stageIdxInCase = stages.findIndex((s: { stageIndex: number }) => s.stageIndex === idx);
-          if (stageIdxInCase !== -1) {
-            // استبدل المرحلة القديمة
-            stages[stageIdxInCase] = newStage;
-          } else {
-            // أضف المرحلة الجديدة
-            stages.push(newStage);
-          }
-          cases[existingCaseIdx].stages = stages;
+          // أضف المرحلة الجديدة دائماً في نهاية المصفوفة دون استبدال
+          cases[existingCaseIdx].stages.push(newStage);
         } else {
           // أنشئ قضية جديدة
           cases.unshift({
