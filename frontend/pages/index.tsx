@@ -67,6 +67,11 @@ export default function Home() {
   const [stageErrors, setStageErrors] = useState<(string|null)[]>(() => Array(STAGES.length).fill(null));
   const [stageShowResult, setStageShowResult] = useState<boolean[]>(() => Array(STAGES.length).fill(false));
 
+  // حالة العريضة النهائية
+  const [finalPetitionLoading, setFinalPetitionLoading] = useState(false);
+  const [finalPetitionError, setFinalPetitionError] = useState<string|null>(null);
+  const [finalPetitionResult, setFinalPetitionResult] = useState<string|null>(null);
+
   const theme = darkMode ? darkTheme : lightTheme;
 
   useEffect(() => {
@@ -117,11 +122,13 @@ export default function Home() {
       setStageLoading(arr => arr.map((v, i) => i === idx ? false : v));
       return;
     }
+    // جمع ملخصات المراحل السابقة (النتائج غير الفارغة فقط)
+    const previousSummaries = stageResults.slice(0, idx).filter(r => !!r);
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, stageIndex: idx, apiKey }),
+        body: JSON.stringify({ text, stageIndex: idx, apiKey, previousSummaries }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -193,6 +200,64 @@ export default function Home() {
   //   };
   //   reader.readAsText(file);
   // }
+
+  // دالة توليد العريضة النهائية
+  const handleGenerateFinalPetition = async () => {
+    setFinalPetitionLoading(true);
+    setFinalPetitionError(null);
+    setFinalPetitionResult(null);
+    if (!apiKey) {
+      setFinalPetitionError('يرجى إدخال مفتاح Gemini API الخاص بك أولاً.');
+      setFinalPetitionLoading(false);
+      return;
+    }
+    const summaries = stageResults.filter(r => !!r);
+    if (summaries.length === 0) {
+      setFinalPetitionError('يرجى تحليل المراحل أولاً قبل توليد العريضة النهائية.');
+      setFinalPetitionLoading(false);
+      return;
+    }
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: mainText, stageIndex: -1, apiKey, previousSummaries: summaries, finalPetition: true }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setFinalPetitionResult(data.analysis);
+        // إضافة العريضة النهائية كمرحلة خاصة في آخر قضية محفوظة
+        try {
+          let cases = [];
+          try {
+            cases = JSON.parse(localStorage.getItem('legal_cases') || '[]');
+          } catch { cases = []; }
+          if (cases.length > 0) {
+            const lastCaseIdx = 0; // أحدث قضية في الأعلى
+            const finalStage = {
+              id: `final-${Date.now()}`,
+              stageIndex: 999,
+              stage: 'العريضة النهائية',
+              input: mainText,
+              output: data.analysis,
+              date: new Date().toISOString(),
+            };
+            // تحقق من عدم وجود عريضة نهائية مكررة
+            if (!cases[lastCaseIdx].stages.some((s: any) => s.stageIndex === 999)) {
+              cases[lastCaseIdx].stages.push(finalStage);
+              localStorage.setItem('legal_cases', JSON.stringify(cases));
+            }
+          }
+        } catch {}
+      } else {
+        setFinalPetitionError(data.error || 'حدث خطأ أثناء توليد العريضة النهائية');
+      }
+    } catch {
+      setFinalPetitionError('تعذر الاتصال بالخادم');
+    } finally {
+      setFinalPetitionLoading(false);
+    }
+  };
 
   // إظهار النموذج مباشرة لأي مستخدم
   return (
@@ -352,6 +417,50 @@ export default function Home() {
             </div>
           ))}
           <footer style={{ textAlign: 'center', color: '#888', marginTop: 32, fontSize: 15 }}>
+            {/* زر توليد العريضة النهائية */}
+            <div style={{ marginBottom: 24 }}>
+              <button
+                type="button"
+                onClick={handleGenerateFinalPetition}
+                disabled={finalPetitionLoading}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(90deg, #6366f1 0%, #4f46e5 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: isMobile() ? '12px 0' : '16px 0',
+                  fontSize: isMobile() ? 17 : 20,
+                  fontWeight: 900,
+                  cursor: finalPetitionLoading ? 'not-allowed' : 'pointer',
+                  marginTop: 8,
+                  boxShadow: '0 2px 8px #6366f133',
+                  letterSpacing: 1,
+                  transition: 'background 0.2s',
+                }}
+              >
+                {finalPetitionLoading ? '⏳ جاري توليد العريضة النهائية...' : '📜 توليد العريضة القانونية النهائية'}
+              </button>
+              {finalPetitionError && <div style={{ color: '#e53e3e', background: '#fff0f0', borderRadius: 8, padding: 12, marginTop: 12, textAlign: 'center', fontWeight: 700, fontSize: 15, boxShadow: '0 1px 4px #e53e3e22' }}>❌ {finalPetitionError}</div>}
+              {finalPetitionResult && (
+                <div style={{
+                  background: '#f5f7ff',
+                  borderRadius: 12,
+                  boxShadow: '0 2px 12px #6366f122',
+                  padding: 18,
+                  marginTop: 16,
+                  border: '1.5px solid #c7d2fe',
+                  color: '#222',
+                  whiteSpace: 'pre-line',
+                  fontSize: 17,
+                  lineHeight: 2,
+                  textAlign: 'right',
+                }}>
+                  <h3 style={{ color: '#4f46e5', marginBottom: 10, fontSize: 18, fontWeight: 800, letterSpacing: 1 }}>📜 العريضة القانونية النهائية</h3>
+                  {finalPetitionResult}
+                </div>
+              )}
+            </div>
             &copy; {new Date().getFullYear()} منصة التحليل القانوني الذكي
           </footer>
         </main>

@@ -201,12 +201,17 @@ const STAGES_DETAILS: Record<string, { description: string; key_points: string[]
   },
 };
 
-// دالة توليد البرومبت لكل مرحلة
-function getStagePrompt(stageName: string, text: string): string {
+// دالة توليد البرومبت لكل مرحلة (معدلة لدعم التحليل التراكمي والتحقق)
+function getStagePrompt(stageName: string, text: string, previousSummaries?: string[]): string {
   const stageInfo = STAGES_DETAILS[stageName];
+  let previousText = '';
+  if (previousSummaries && previousSummaries.length > 0) {
+    previousText = `\nملخص المراحل السابقة:\n${previousSummaries.map((s, i) => `- المرحلة ${i + 1}: ${s}`).join('\n')}`;
+  }
   return `
 ${stageName}
 ${stageInfo?.description || ''}
+${previousText}
 
 النقاط الرئيسية للتحليل:
 ${stageInfo?.key_points?.map((p) => '- ' + p).join('\n')}
@@ -221,6 +226,7 @@ ${text}
 1. الإجابة على الأسئلة الرئيسية المطروحة في إطار القوانين الفلسطينية
 2. تحليل النقاط الرئيسية المحددة وفقاً للنظام القانوني الفلسطيني
 3. تقديم تحليل مفصل ومدعم بالأسناد القانونية الفلسطينية
+4. التحقق من صحة المعلومات القانونية بدقة وتجنب أي لغط أو أخطاء قانونية. إذا لم تكن متأكدًا من معلومة، وضّح ذلك أو اذكر مصدرها إن أمكن.
 `;
 }
 
@@ -238,16 +244,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { text, stageIndex, apiKey } = req.body;
-  if (!text || typeof stageIndex !== 'number' || stageIndex < 0 || stageIndex >= STAGES.length) {
+  const { text, stageIndex, apiKey, previousSummaries, finalPetition } = req.body;
+  if (!text || typeof stageIndex !== 'number' || !apiKey) {
     return res.status(400).json({ error: 'Invalid input' });
   }
-  if (!apiKey) {
-    return res.status(400).json({ error: 'يرجى إدخال مفتاح Gemini API الخاص بك.' });
+
+  // معالجة طلب العريضة النهائية
+  if (finalPetition && stageIndex === -1) {
+    if (!previousSummaries || !Array.isArray(previousSummaries) || previousSummaries.length === 0) {
+      return res.status(400).json({ error: 'يرجى تحليل المراحل أولاً.' });
+    }
+    // بناء برومبت خاص للعريضة النهائية
+    const petitionPrompt = `
+أنت خبير قانوني فلسطيني محترف. بناءً على ملخصات التحليل التالية لكل مرحلة من مراحل القضية، قم بصياغة عريضة قانونية نهائية رسمية وجاهزة للتقديم للمحكمة، بحيث تشمل جميع الجوانب القانونية والوقائعية، وتكون دقيقة وخالية من الأخطاء القانونية أو اللغط، وتستند إلى القوانين الفلسطينية ذات الصلة:
+
+تفاصيل القضية:
+${text}
+
+ملخصات المراحل التحليلية:
+${previousSummaries.map((s, i) => `- المرحلة ${i + 1}: ${s}`).join('\n')}
+
+تعليمات هامة:
+- ابدأ العريضة بمقدمة رسمية مناسبة.
+- اعرض الوقائع بشكل موجز ودقيق.
+- حلل الجوانب القانونية مستندًا إلى نتائج المراحل السابقة.
+- استشهد بالنصوص القانونية الفلسطينية ذات الصلة.
+- قدم طلباتك للمحكمة بشكل واضح ومهني.
+- تحقق من صحة جميع المعلومات القانونية وتجنب أي لغط أو أخطاء.
+- إذا لم تكن متأكدًا من معلومة، وضّح ذلك أو اذكر مصدرها إن أمكن.
+- اجعل العريضة متسلسلة وواضحة وسهلة القراءة.
+
+صياغة العريضة:
+`;
+    try {
+      const analysis = await callGeminiAPI(petitionPrompt, apiKey);
+      return res.status(200).json({ stage: 'العريضة النهائية', analysis });
+    } catch (error: unknown) {
+      let message = 'حدث خطأ أثناء توليد العريضة النهائية';
+      if (error && typeof error === 'object' && 'message' in error) {
+        message = (error as { message: string }).message;
+      }
+      return res.status(500).json({ error: message });
+    }
+  }
+
+  // معالجة التحليل العادي لكل مرحلة
+  if (stageIndex < 0 || stageIndex >= STAGES.length) {
+    return res.status(400).json({ error: 'Invalid input' });
   }
 
   const stage = STAGES[stageIndex];
-  const prompt = getStagePrompt(stage, text);
+  const prompt = getStagePrompt(stage, text, previousSummaries);
 
   try {
     const analysis = await callGeminiAPI(prompt, apiKey);
