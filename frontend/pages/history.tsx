@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { saveCases, loadCases } from '../utils/db';
 
 const STAGES = [
@@ -53,6 +52,7 @@ interface Case {
   name: string;
   createdAt: string;
   stages: AnalysisHistoryItem[];
+  chats?: ChatMessage[]; // إضافة خاصية المحادثات كخيارية
 }
 
 // تعريف نوع جديد للمحادثة
@@ -77,11 +77,10 @@ export default function History() {
   const [editNameValue, setEditNameValue] = useState<string>('');
   // بحث عن القضايا
   const [search, setSearch] = useState('');
-  // إضافة مرحلة جديدة
-  const [addStageId, setAddStageId] = useState<string | null>(null);
-  const [newStageIndex, setNewStageIndex] = useState<number>(0);
-  const [newStageInput, setNewStageInput] = useState<string>('');
-  const [addingStage, setAddingStage] = useState(false);
+  // حذف المتغيرات غير المستخدمة:
+  // const [newStageIndex, setNewStageIndex] = useState<number>(0);
+  // const [newStageInput, setNewStageInput] = useState<string>('');
+  // const [addingStage, setAddingStage] = useState(false);
 
   // تحويل البيانات القديمة (history) إلى بنية قضايا عند أول تحميل
   useEffect(() => {
@@ -261,7 +260,7 @@ export default function History() {
   );
 }
 
-function ChatBox({ caseObj, setCases, theme, darkMode }: { caseObj: any, setCases: any, theme: any, darkMode: boolean }) {
+function ChatBox({ caseObj, setCases, theme, darkMode }: { caseObj: Case, setCases: React.Dispatch<React.SetStateAction<Case[]>>, theme: typeof lightTheme, darkMode: boolean }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string|null>(null);
@@ -291,7 +290,7 @@ function ChatBox({ caseObj, setCases, theme, darkMode }: { caseObj: any, setCase
           answer: data.analysis,
           date: new Date().toISOString(),
         };
-        setCases((prev: any) => prev.map((c: any) => c.id === caseObj.id ? { ...c, chats: [...(c.chats||[]), newMsg] } : c));
+        setCases((prev: Case[]) => prev.map((c: Case) => c.id === caseObj.id ? { ...c, chats: [...(c.chats||[]), newMsg] } : c));
         setInput('');
       } else {
         setError(data.error || 'حدث خطأ أثناء التحليل');
