@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
 // إزالة استيراد useSession, signIn, signOut
+import { saveApiKey, loadApiKey, saveHistory, loadHistory } from '../utils/db';
 
 const STAGES = [
   'المرحلة الأولى: تحديد المشكلة القانونية',
@@ -83,22 +84,19 @@ export default function Home() {
   const theme = darkMode ? darkTheme : lightTheme;
 
   useEffect(() => {
-    try {
-      const savedKey = typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : '';
-      if (savedKey) setApiKey(decode(savedKey));
-    } catch {
-      setLocalStorageError(true);
-    }
+    // تحميل مفتاح API من قاعدة البيانات عند بدء التشغيل
+    loadApiKey().then(val => {
+      if (val) setApiKey(val);
+    });
+    // تحميل سجل التحليل من قاعدة البيانات (اختياري)
+    // loadHistory().then(h => { ... });
     const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('legal_dark_mode') : null;
     if (savedTheme === '1') setDarkMode(true);
   }, []);
 
   useEffect(() => {
-    try {
-      if (apiKey) localStorage.setItem('gemini_api_key', encode(apiKey));
-    } catch {
-      setLocalStorageError(true);
-    }
+    // حفظ مفتاح API في قاعدة البيانات عند تغييره
+    if (apiKey) saveApiKey(apiKey);
   }, [apiKey]);
 
   useEffect(() => {
@@ -149,6 +147,8 @@ export default function Home() {
           date: new Date().toISOString(),
         });
         localStorage.setItem('legal_analysis_history', JSON.stringify(history.slice(0, 30)));
+        // حفظ السجل في قاعدة البيانات
+        saveHistory(history.slice(0, 30));
       } else {
         setError(data.error || 'حدث خطأ أثناء التحليل');
       }

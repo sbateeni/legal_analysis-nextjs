@@ -30,6 +30,7 @@
     "@vercel/blob": "^1.1.1",
     "axios": "^1.6.8",
     "bcryptjs": "^3.0.2",
+    "idb-keyval": "^6.2.2",
     "next": "15.3.5",
     "next-auth": "^4.24.11",
     "prisma": "^6.11.1",
