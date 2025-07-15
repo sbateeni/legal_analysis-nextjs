@@ -18,4 +18,12 @@ export async function loadHistory(): Promise<any[]> {
 
 export async function clearHistory() {
   await del('legal_analysis_history');
+}
+
+export async function saveCases(cases: any[]) {
+  await set('legal_cases', cases);
+}
+
+export async function loadCases(): Promise<any[]> {
+  return (await get('legal_cases')) || [];
 } 

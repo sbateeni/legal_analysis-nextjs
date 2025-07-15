@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
 // إزالة استيراد useSession, signIn, signOut
-import { saveApiKey, loadApiKey, saveHistory } from '../utils/db';
+import { saveApiKey, loadApiKey, saveHistory, saveCases } from '../utils/db';
 import { useRouter } from 'next/router';
 
 const STAGES = [
@@ -121,21 +121,35 @@ export default function Home() {
       if (res.ok) {
         setResult(data.analysis);
         setTimeout(() => setShowResult(true), 100); // أنيميشن ظهور النتيجة
-        // حفظ التحليل في LocalStorage
-        const history = JSON.parse(localStorage.getItem('legal_analysis_history') || '[]');
-        history.unshift({
+        // حفظ التحليل في قضايا (قائمة القضايا)
+        const caseName = `قضية: ${text.split(' ').slice(0, 5).join(' ')}...`;
+        const newStage = {
           id: uuidv4(),
           stageIndex,
           stage: STAGES[stageIndex],
           input: text,
           output: data.analysis,
           date: new Date().toISOString(),
-        });
-        localStorage.setItem('legal_analysis_history', JSON.stringify(history.slice(0, 30)));
-        // حفظ قائمة القضايا في قاعدة البيانات
-        saveHistory(history.slice(0, 30));
-        // تحويل تلقائي إلى صفحة القضايا بعد نجاح التحليل
-        setTimeout(() => { router.push('/history'); }, 800);
+        };
+        let cases = [];
+        try {
+          cases = JSON.parse(localStorage.getItem('legal_cases') || '[]');
+        } catch { cases = []; }
+        // ابحث عن قضية بنفس الاسم
+        const existingCaseIdx = cases.findIndex((c: any) => c.name === caseName);
+        if (existingCaseIdx !== -1) {
+          // أضف المرحلة للقضية الموجودة
+          cases[existingCaseIdx].stages.push(newStage);
+        } else {
+          // أنشئ قضية جديدة
+          cases.unshift({
+            id: newStage.id,
+            name: caseName,
+            createdAt: newStage.date,
+            stages: [newStage],
+          });
+        }
+        saveCases(cases);
       } else {
         // معالجة خطأ 429 (تجاوز الحد)
         if (data.error && data.error.includes('429')) {

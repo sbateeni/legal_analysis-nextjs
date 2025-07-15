@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { saveCases, loadCases } from '../utils/db';
 
 const STAGES = [
   'المرحلة الأولى: تحديد المشكلة القانونية',
@@ -76,35 +77,84 @@ export default function History() {
   useEffect(() => {
     const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('legal_dark_mode') : null;
     if (savedTheme === '1') setDarkMode(true);
-    const savedCases = typeof window !== 'undefined' ? localStorage.getItem('legal_cases') : null;
-    if (savedCases) {
-      setCases(JSON.parse(savedCases));
-    } else {
-      // تحويل البيانات القديمة
-      const savedHistory = typeof window !== 'undefined' ? localStorage.getItem('legal_analysis_history') : null;
-      if (savedHistory) {
-        const history: AnalysisHistoryItem[] = JSON.parse(savedHistory);
-        // تجميع التحليلات في قضايا حسب النص المدخل الأول (أو كل تحليل قضية منفصلة)
-        const cases: Case[] = history.map((item, idx) => ({
-          id: item.id,
-          name: `قضية: ${item.input.split(' ').slice(0, 5).join(' ')}...`,
-          createdAt: item.date,
-          stages: [item],
-        }));
-        setCases(cases);
-        localStorage.setItem('legal_cases', JSON.stringify(cases));
-        localStorage.removeItem('legal_analysis_history');
+    // جلب القضايا من IndexedDB فقط
+    loadCases().then(dbCases => {
+      if (dbCases && dbCases.length > 0) {
+        setCases(dbCases);
+      } else {
+        // تحويل البيانات القديمة (مرة واحدة فقط)
+        const savedHistory = typeof window !== 'undefined' ? localStorage.getItem('legal_analysis_history') : null;
+        if (savedHistory) {
+          const history: AnalysisHistoryItem[] = JSON.parse(savedHistory);
+          const cases: Case[] = history.map((item, idx) => ({
+            id: item.id,
+            name: `قضية: ${item.input.split(' ').slice(0, 5).join(' ')}...`,
+            createdAt: item.date,
+            stages: [item],
+          }));
+          setCases(cases);
+          saveCases(cases);
+          localStorage.removeItem('legal_analysis_history');
+        }
       }
-    }
+    });
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('legal_cases', JSON.stringify(cases));
+    saveCases(cases);
   }, [cases]);
 
   const handleDeleteCase = (id: string) => {
     setCases(cs => cs.filter(c => c.id !== id));
     if (selectedCaseId === id) setSelectedCaseId(null);
+  };
+
+  // حذف مرحلة من قضية
+  const handleDeleteStage = (caseId: string, stageId: string) => {
+    setCases(cs => cs.map(c => c.id === caseId ? {
+      ...c,
+      stages: c.stages.filter(s => s.id !== stageId)
+    } : c));
+  };
+
+  // تصدير القضايا كملف JSON
+  const handleExport = () => {
+    const blob = new Blob([JSON.stringify(cases, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'legal_cases.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // استيراد القضايا من ملف JSON
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      if (typeof ev.target?.result === 'string') {
+        try {
+          const imported = JSON.parse(ev.target.result);
+          if (Array.isArray(imported)) {
+            // دمج القضايا (مع استبعاد التكرار حسب id)
+            const merged = [...cases];
+            imported.forEach((c: any) => {
+              if (!merged.some(cc => cc.id === c.id)) merged.push(c);
+            });
+            setCases(merged);
+          } else {
+            alert('صيغة الملف غير صحيحة!');
+          }
+        } catch {
+          alert('فشل في قراءة الملف!');
+        }
+      }
+    };
+    reader.readAsText(file);
   };
 
   // واجهة القضايا
@@ -116,6 +166,14 @@ export default function History() {
         margin: '0 auto',
         padding: isMobile() ? '1rem 0.5rem' : '2.5rem 1rem',
       }}>
+        {/* أزرار التصدير والاستيراد */}
+        <div style={{display:'flex', gap:12, justifyContent:'center', marginBottom:18}}>
+          <button onClick={handleExport} style={{background:theme.accent, color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:15, cursor:'pointer', boxShadow:'0 1px 4px #4f46e522'}}>⬇️ تصدير القضايا</button>
+          <label style={{background:theme.accent2, color:'#fff', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:15, cursor:'pointer', boxShadow:'0 1px 4px #6366f122', display:'inline-block'}}>
+            ⬆️ استيراد قضايا
+            <input type="file" accept="application/json" onChange={handleImport} style={{ display: 'none' }} />
+          </label>
+        </div>
         <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:10, marginBottom:18}}>
           <span style={{fontSize:32}}>📑</span>
           <h1 style={{ color: theme.accent, fontWeight: 900, fontSize: 28, margin: 0, letterSpacing: 1 }}>قائمة القضايا</h1>
@@ -153,13 +211,14 @@ export default function History() {
                 <div style={{fontSize:15, color:'#888', marginBottom:18}}>تاريخ الإنشاء: {new Date(c.createdAt).toLocaleString('ar-EG')}</div>
                 <div style={{display:'flex', flexDirection:'column', gap:18}}>
                   {c.stages.map((stage, idx) => (
-                    <div key={stage.id} style={{background:theme.resultBg, borderRadius:12, boxShadow:`0 1px 6px ${theme.shadow}`, border:`1px solid ${theme.border}`, padding:isMobile()?10:18}}>
+                    <div key={stage.id} style={{background:theme.resultBg, borderRadius:12, boxShadow:`0 1px 6px ${theme.shadow}`, border:`1px solid ${theme.border}`, padding:isMobile()?10:18, position:'relative'}}>
                       <div style={{color:theme.accent2, fontWeight:700, fontSize:17, marginBottom:6}}><span style={{fontSize:18}}>🧩</span> {STAGES[stage.stageIndex]}</div>
                       <div style={{fontWeight:600, color:theme.accent, marginBottom:4}}>النص المدخل:</div>
                       <div style={{background:darkMode?'#181a2a':'#f5f7ff', borderRadius:8, padding:'8px 12px', fontSize:16, whiteSpace:'pre-line', border:`1px solid ${theme.border}`, marginBottom:8}}>{stage.input}</div>
                       <div style={{fontWeight:600, color:theme.accent, marginBottom:4}}>مخرجات التحليل:</div>
                       <div style={{background:darkMode?'#181a2a':'#f5f7ff', borderRadius:8, padding:'8px 12px', fontSize:16, whiteSpace:'pre-line', border:`1px solid ${theme.border}`}}>{stage.output}</div>
                       <div style={{fontSize:13, color:'#888', marginTop:6}}>تاريخ المرحلة: {new Date(stage.date).toLocaleString('ar-EG')}</div>
+                      <button onClick={() => handleDeleteStage(c.id, stage.id)} style={{position:'absolute', left:14, top:14, background:'#ff6b6b', color:'#fff', border:'none', borderRadius:8, padding:isMobile()?'4px 8px':'5px 12px', fontWeight:700, fontSize:isMobile()?12:14, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b33', transition:'background 0.2s'}}>حذف المرحلة</button>
                     </div>
                   ))}
                   {/* إضافة مرحلة جديدة */}
