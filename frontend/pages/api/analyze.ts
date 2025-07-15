@@ -227,7 +227,7 @@ ${text}
 async function callGeminiAPI(prompt: string, apiKey: string): Promise<string> {
   if (!apiKey) throw new Error('يرجى إدخال مفتاح Gemini API الخاص بك.');
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'models/gemini-2.0-flash-001' });
   const result = await model.generateContent(prompt);
   const response = await result.response;
   return response.text();
