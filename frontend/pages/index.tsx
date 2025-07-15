@@ -160,29 +160,29 @@ export default function Home() {
   };
 
   // دالة لتصدير المفتاح كملف نصي
-  function exportApiKey() {
-    const blob = new Blob([apiKey], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'gemini_api_key.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
+  // function exportApiKey() {
+  //   const blob = new Blob([apiKey], { type: 'text/plain' });
+  //   const url = URL.createObjectURL(blob);
+  //   const a = document.createElement('a');
+  //   a.href = url;
+  //   a.download = 'gemini_api_key.txt';
+  //   document.body.appendChild(a);
+  //   a.click();
+  //   document.body.removeChild(a);
+  //   URL.revokeObjectURL(url);
+  // }
   // دالة لاستيراد المفتاح من ملف
-  function importApiKey(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-      if (typeof ev.target?.result === 'string') {
-        setApiKey(ev.target.result.trim());
-      }
-    };
-    reader.readAsText(file);
-  }
+  // function importApiKey(e: React.ChangeEvent<HTMLInputElement>) {
+  //   const file = e.target.files?.[0];
+  //   if (!file) return;
+  //   const reader = new FileReader();
+  //   reader.onload = function(ev) {
+  //     if (typeof ev.target?.result === 'string') {
+  //       setApiKey(ev.target.result.trim());
+  //     }
+  //   };
+  //   reader.readAsText(file);
+  // }
 
   // إظهار النموذج مباشرة لأي مستخدم
   return (
@@ -280,11 +280,11 @@ export default function Home() {
               required
             />
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <button type="button" onClick={exportApiKey} style={{ background: theme.accent2, color: '#fff', border: 'none', borderRadius: 8, padding: isMobile() ? '6px 10px' : '8px 18px', fontWeight: 700, fontSize: isMobile() ? 14 : 15, cursor: 'pointer', boxShadow: `0 1px 4px ${theme.accent2}22` }}>⬇️ تصدير المفتاح</button>
-              <label style={{ background: theme.accent, color: '#fff', borderRadius: 8, padding: isMobile() ? '6px 10px' : '8px 18px', fontWeight: 700, fontSize: isMobile() ? 14 : 15, cursor: 'pointer', boxShadow: `0 1px 4px ${theme.accent}22`, display: 'inline-block' }}>
+              {/* <button type="button" onClick={exportApiKey} style={{ background: theme.accent2, color: '#fff', border: 'none', borderRadius: 8, padding: isMobile() ? '6px 10px' : '8px 18px', fontWeight: 700, fontSize: isMobile() ? 14 : 15, cursor: 'pointer', boxShadow: `0 1px 4px ${theme.accent2}22` }}>⬇️ تصدير المفتاح</button> */}
+              {/* <label style={{ background: theme.accent, color: '#fff', borderRadius: 8, padding: isMobile() ? '6px 10px' : '8px 18px', fontWeight: 700, fontSize: isMobile() ? 14 : 15, cursor: 'pointer', boxShadow: `0 1px 4px ${theme.accent}22`, display: 'inline-block' }}>
                 ⬆️ استيراد مفتاح
                 <input type="file" accept=".txt" onChange={importApiKey} style={{ display: 'none' }} />
-              </label>
+              </label> */}
             </div>
             <div style={{ color: '#888', fontSize: 13, marginTop: 6 }}>
               <span>يمكنك الحصول على المفتاح من <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{color:theme.accent, textDecoration:'underline'}}>Google AI Studio</a></span>
