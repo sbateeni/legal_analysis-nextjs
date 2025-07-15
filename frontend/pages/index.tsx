@@ -51,6 +51,16 @@ function isMobile() {
   return window.innerWidth <= 600;
 }
 
+// تعريف نوع المرحلة التحليلية (للاستخدام في التايب)
+type AnalysisHistoryItem = {
+  id: string;
+  stageIndex: number;
+  stage: string;
+  input: string;
+  output: string;
+  date: string;
+};
+
 export default function Home() {
   // إزالة كل كود متعلق بالجلسة أو زر تسجيل الدخول/الخروج
   const [apiKey, setApiKey] = useState('');
@@ -243,7 +253,7 @@ export default function Home() {
               date: new Date().toISOString(),
             };
             // تحقق من عدم وجود عريضة نهائية مكررة
-            if (!cases[lastCaseIdx].stages.some((s: any) => s.stageIndex === 999)) {
+            if (!cases[lastCaseIdx].stages.some((s: AnalysisHistoryItem) => s.stageIndex === 999)) {
               cases[lastCaseIdx].stages.push(finalStage);
               localStorage.setItem('legal_cases', JSON.stringify(cases));
             }
