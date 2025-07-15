@@ -133,7 +133,12 @@ export default function Home() {
         // حفظ السجل في قاعدة البيانات
         saveHistory(history.slice(0, 30));
       } else {
-        setError(data.error || 'حدث خطأ أثناء التحليل');
+        // معالجة خطأ 429 (تجاوز الحد)
+        if (data.error && data.error.includes('429')) {
+          setError('لقد تجاوزت الحد المسموح به لعدد الطلبات على خدمة Gemini API. يرجى الانتظار دقيقة ثم إعادة المحاولة. إذا تكررت المشكلة، استخدم مفتاح API آخر أو راجع إعدادات حسابك في Google AI Studio.');
+        } else {
+          setError(data.error || 'حدث خطأ أثناء التحليل');
+        }
       }
     } catch {
       setError('تعذر الاتصال بالخادم');
