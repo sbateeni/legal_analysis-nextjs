@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
 import { useSession, signIn, signOut } from "next-auth/react";
@@ -72,6 +72,7 @@ export default function Home() {
   const [darkMode, setDarkMode] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [localStorageError, setLocalStorageError] = useState(false);
+  const prevApiKey = useRef("");
 
   const theme = darkMode ? darkTheme : lightTheme;
 
@@ -97,6 +98,42 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem('legal_dark_mode', darkMode ? '1' : '0');
   }, [darkMode]);
+
+  // حفظ بيانات المستخدم عند تسجيل الدخول
+  useEffect(() => {
+    if (session?.user?.email) {
+      const provider = session.user.email.endsWith('@github.com') ? 'github' : 'google';
+      fetch("/api/save-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: session.user.name,
+          email: session.user.email,
+          image: session.user.image,
+          provider,
+        }),
+      });
+    }
+  }, [session]);
+
+  // حفظ apiKey في Blob Storage عند تغييره
+  useEffect(() => {
+    if (session?.user?.email && apiKey && apiKey !== prevApiKey.current) {
+      const provider = session.user.email.endsWith('@github.com') ? 'github' : 'google';
+      fetch("/api/save-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: session.user.name,
+          email: session.user.email,
+          image: session.user.image,
+          provider,
+          apiKey,
+        }),
+      });
+      prevApiKey.current = apiKey;
+    }
+  }, [apiKey, session]);
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
