@@ -66,6 +66,13 @@ export default function Home() {
   const prevApiKey = useRef("");
   // const router = useRouter();
 
+  // لكل مرحلة: نص، نتيجة، تحميل، خطأ، إظهار نتيجة
+  const [stageTexts, setStageTexts] = useState<string[]>(() => Array(STAGES.length).fill(''));
+  const [stageResults, setStageResults] = useState<(string|null)[]>(() => Array(STAGES.length).fill(null));
+  const [stageLoading, setStageLoading] = useState<boolean[]>(() => Array(STAGES.length).fill(false));
+  const [stageErrors, setStageErrors] = useState<(string|null)[]>(() => Array(STAGES.length).fill(null));
+  const [stageShowResult, setStageShowResult] = useState<boolean[]>(() => Array(STAGES.length).fill(false));
+
   const theme = darkMode ? darkTheme : lightTheme;
 
   useEffect(() => {
@@ -99,33 +106,39 @@ export default function Home() {
     }
   }, [apiKey]);
 
-  const handleAnalyze = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setShowResult(false);
+  // دالة تحليل مرحلة واحدة
+  const handleAnalyzeStage = async (idx: number) => {
+    setStageLoading(arr => arr.map((v, i) => i === idx ? true : v));
+    setStageErrors(arr => arr.map((v, i) => i === idx ? null : v));
+    setStageResults(arr => arr.map((v, i) => i === idx ? null : v));
+    setStageShowResult(arr => arr.map((v, i) => i === idx ? false : v));
     if (!apiKey) {
-      setError('يرجى إدخال مفتاح Gemini API الخاص بك أولاً.');
-      setLoading(false);
+      setStageErrors(arr => arr.map((v, i) => i === idx ? 'يرجى إدخال مفتاح Gemini API الخاص بك أولاً.' : v));
+      setStageLoading(arr => arr.map((v, i) => i === idx ? false : v));
+      return;
+    }
+    const text = stageTexts[idx];
+    if (!text.trim()) {
+      setStageErrors(arr => arr.map((v, i) => i === idx ? 'يرجى إدخال نص قانوني.' : v));
+      setStageLoading(arr => arr.map((v, i) => i === idx ? false : v));
       return;
     }
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, stageIndex, apiKey }),
+        body: JSON.stringify({ text, stageIndex: idx, apiKey }),
       });
       const data = await res.json();
       if (res.ok) {
-        setResult(data.analysis);
-        setTimeout(() => setShowResult(true), 100); // أنيميشن ظهور النتيجة
-        // حفظ التحليل في قضايا (قائمة القضايا)
+        setStageResults(arr => arr.map((v, i) => i === idx ? data.analysis : v));
+        setTimeout(() => setStageShowResult(arr => arr.map((v, i) => i === idx ? true : v)), 100);
+        // حفظ التحليل في القضايا
         const caseName = `قضية: ${text.split(' ').slice(0, 5).join(' ')}...`;
         const newStage = {
           id: uuidv4(),
-          stageIndex,
-          stage: STAGES[stageIndex],
+          stageIndex: idx,
+          stage: STAGES[idx],
           input: text,
           output: data.analysis,
           date: new Date().toISOString(),
@@ -134,13 +147,10 @@ export default function Home() {
         try {
           cases = JSON.parse(localStorage.getItem('legal_cases') || '[]');
         } catch { cases = []; }
-        // ابحث عن قضية بنفس الاسم
         const existingCaseIdx = cases.findIndex((c: { name: string }) => c.name === caseName);
         if (existingCaseIdx !== -1) {
-          // أضف المرحلة للقضية الموجودة
           cases[existingCaseIdx].stages.push(newStage);
         } else {
-          // أنشئ قضية جديدة
           cases.unshift({
             id: newStage.id,
             name: caseName,
@@ -150,17 +160,16 @@ export default function Home() {
         }
         saveCases(cases);
       } else {
-        // معالجة خطأ 429 (تجاوز الحد)
         if (data.error && data.error.includes('429')) {
-          setError('لقد تجاوزت الحد المسموح به لعدد الطلبات على خدمة Gemini API. يرجى الانتظار دقيقة ثم إعادة المحاولة. إذا تكررت المشكلة، استخدم مفتاح API آخر أو راجع إعدادات حسابك في Google AI Studio.');
+          setStageErrors(arr => arr.map((v, i) => i === idx ? 'لقد تجاوزت الحد المسموح به لعدد الطلبات على خدمة Gemini API. يرجى الانتظار دقيقة ثم إعادة المحاولة. إذا تكررت المشكلة، استخدم مفتاح API آخر أو راجع إعدادات حسابك في Google AI Studio.' : v));
         } else {
-          setError(data.error || 'حدث خطأ أثناء التحليل');
+          setStageErrors(arr => arr.map((v, i) => i === idx ? (data.error || 'حدث خطأ أثناء التحليل') : v));
         }
       }
     } catch {
-      setError('تعذر الاتصال بالخادم');
+      setStageErrors(arr => arr.map((v, i) => i === idx ? 'تعذر الاتصال بالخادم' : v));
     } finally {
-      setLoading(false);
+      setStageLoading(arr => arr.map((v, i) => i === idx ? false : v));
     }
   };
 
@@ -284,73 +293,57 @@ export default function Home() {
               dir="ltr"
               required
             />
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              {/* <button type="button" onClick={exportApiKey} style={{ background: theme.accent2, color: '#fff', border: 'none', borderRadius: 8, padding: isMobile() ? '6px 10px' : '8px 18px', fontWeight: 700, fontSize: isMobile() ? 14 : 15, cursor: 'pointer', boxShadow: `0 1px 4px ${theme.accent2}22` }}>⬇️ تصدير المفتاح</button> */}
-              {/* <label style={{ background: theme.accent, color: '#fff', borderRadius: 8, padding: isMobile() ? '6px 10px' : '8px 18px', fontWeight: 700, fontSize: isMobile() ? 14 : 15, cursor: 'pointer', boxShadow: `0 1px 4px ${theme.accent}22`, display: 'inline-block' }}>
-                ⬆️ استيراد مفتاح
-                <input type="file" accept=".txt" onChange={importApiKey} style={{ display: 'none' }} />
-              </label> */}
-            </div>
             <div style={{ color: '#888', fontSize: 13, marginTop: 6 }}>
               <span>يمكنك الحصول على المفتاح من <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{color:theme.accent, textDecoration:'underline'}}>Google AI Studio</a></span>
             </div>
           </div>
-          {/* نموذج التحليل */}
-          <form onSubmit={handleAnalyze} style={{
-            background: theme.card,
-            borderRadius: 14,
-            boxShadow: `0 2px 12px ${theme.shadow}`,
-            padding: 28,
-            marginBottom: 28,
-            border: `1.5px solid ${theme.border}`,
-          }}>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, color: theme.accent, fontSize: 16 }}>📄 النص القانوني:</label>
-            <textarea
-              value={text}
-              onChange={e => setText(e.target.value)}
-              rows={6}
-              style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: isMobile() ? 8 : 12, fontSize: isMobile() ? 15 : 16, marginBottom: 16, resize: 'vertical', outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
-              placeholder="أدخل النص القانوني هنا..."
-              required
-            />
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, color: theme.accent, fontSize: 16 }}>🧩 اختر المرحلة:</label>
-            <select
-              value={stageIndex}
-              onChange={e => setStageIndex(Number(e.target.value))}
-              style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: 12, fontSize: 16, marginBottom: 16, outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#232946' : '#f5f7ff', color: theme.text, transition: 'background 0.3s' }}
-            >
-              {STAGES.map((stage, idx) => (
-                <option key={stage} value={idx}>{stage}</option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              disabled={loading}
-              style={{ width: '100%', background: `linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color: '#fff', border: 'none', borderRadius: 8, padding: isMobile() ? '10px 0' : '14px 0', fontSize: isMobile() ? 16 : 19, fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', marginTop: 8, boxShadow: `0 2px 8px ${theme.accent}33`, letterSpacing: 1, transition: 'background 0.2s' }}
-            >
-              {loading ? '⏳ جاري التحليل...' : '🚀 ابدأ التحليل'}
-            </button>
-          </form>
-          {/* رسائل الخطأ */}
-          {error && <div style={{ color: theme.errorText, background: theme.errorBg, borderRadius: 8, padding: 16, marginBottom: 16, textAlign: 'center', fontWeight: 700, fontSize: 16, boxShadow: `0 1px 4px ${theme.errorText}22` }}>❌ {error}</div>}
-          {/* نتيجة التحليل */}
-          {result && (
-            <div style={{
-              background: theme.resultBg,
-              borderRadius: 16,
+          {/* عرض جميع المراحل */}
+          {STAGES.map((stage, idx) => (
+            <div key={stage} style={{
+              background: theme.card,
+              borderRadius: 14,
               boxShadow: `0 2px 12px ${theme.shadow}`,
-              padding: 28,
-              marginBottom: 24,
-              border: `1.5px solid ${theme.input}`,
-              color: theme.text,
-              opacity: showResult ? 1 : 0,
-              transform: showResult ? 'translateY(0)' : 'translateY(30px)',
-              transition: 'opacity 0.7s, transform 0.7s',
+              padding: isMobile() ? 12 : 22,
+              marginBottom: 28,
+              border: `1.5px solid ${theme.border}`,
             }}>
-              <h2 style={{ color: theme.accent, marginBottom: 16, fontSize: 22, fontWeight: 800, letterSpacing: 1 }}>🔍 نتيجة التحليل</h2>
-              <div style={{ whiteSpace: 'pre-line', fontSize: 17, lineHeight: 2 }}>{result}</div>
+              <div style={{ fontWeight: 800, color: theme.accent, fontSize: 18, marginBottom: 8 }}>{stage}</div>
+              <textarea
+                value={stageTexts[idx]}
+                onChange={e => setStageTexts(arr => arr.map((v, i) => i === idx ? e.target.value : v))}
+                rows={5}
+                style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: isMobile() ? 8 : 12, fontSize: isMobile() ? 15 : 16, marginBottom: 12, resize: 'vertical', outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
+                placeholder={`أدخل نص المرحلة (${stage}) هنا...`}
+                required
+              />
+              <button
+                type="button"
+                disabled={stageLoading[idx]}
+                onClick={() => handleAnalyzeStage(idx)}
+                style={{ width: '100%', background: `linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color: '#fff', border: 'none', borderRadius: 8, padding: isMobile() ? '10px 0' : '14px 0', fontSize: isMobile() ? 16 : 19, fontWeight: 800, cursor: stageLoading[idx] ? 'not-allowed' : 'pointer', marginTop: 8, boxShadow: `0 2px 8px ${theme.accent}33`, letterSpacing: 1, transition: 'background 0.2s' }}
+              >
+                {stageLoading[idx] ? '⏳ جاري التحليل...' : `🚀 تحليل ${stage}`}
+              </button>
+              {stageErrors[idx] && <div style={{ color: theme.errorText, background: theme.errorBg, borderRadius: 8, padding: 12, marginTop: 12, textAlign: 'center', fontWeight: 700, fontSize: 15, boxShadow: `0 1px 4px ${theme.errorText}22` }}>❌ {stageErrors[idx]}</div>}
+              {stageResults[idx] && (
+                <div style={{
+                  background: theme.resultBg,
+                  borderRadius: 12,
+                  boxShadow: `0 2px 12px ${theme.shadow}`,
+                  padding: 18,
+                  marginTop: 16,
+                  border: `1.5px solid ${theme.input}`,
+                  color: theme.text,
+                  opacity: stageShowResult[idx] ? 1 : 0,
+                  transform: stageShowResult[idx] ? 'translateY(0)' : 'translateY(30px)',
+                  transition: 'opacity 0.7s, transform 0.7s',
+                }}>
+                  <h3 style={{ color: theme.accent, marginBottom: 10, fontSize: 17, fontWeight: 800, letterSpacing: 1 }}>🔍 نتيجة التحليل</h3>
+                  <div style={{ whiteSpace: 'pre-line', fontSize: 16, lineHeight: 2 }}>{stageResults[idx]}</div>
+                </div>
+              )}
             </div>
-          )}
+          ))}
           <footer style={{ textAlign: 'center', color: '#888', marginTop: 32, fontSize: 15 }}>
             &copy; {new Date().getFullYear()} منصة التحليل القانوني الذكي
           </footer>
