@@ -67,7 +67,8 @@ export default function Home() {
   // const router = useRouter();
 
   // لكل مرحلة: نص، نتيجة، تحميل، خطأ، إظهار نتيجة
-  const [stageTexts, setStageTexts] = useState<string[]>(() => Array(STAGES.length).fill(''));
+  // مربع نص واحد فقط
+  const [mainText, setMainText] = useState('');
   const [stageResults, setStageResults] = useState<(string|null)[]>(() => Array(STAGES.length).fill(null));
   const [stageLoading, setStageLoading] = useState<boolean[]>(() => Array(STAGES.length).fill(false));
   const [stageErrors, setStageErrors] = useState<(string|null)[]>(() => Array(STAGES.length).fill(null));
@@ -117,9 +118,9 @@ export default function Home() {
       setStageLoading(arr => arr.map((v, i) => i === idx ? false : v));
       return;
     }
-    const text = stageTexts[idx];
+    const text = mainText;
     if (!text.trim()) {
-      setStageErrors(arr => arr.map((v, i) => i === idx ? 'يرجى إدخال نص قانوني.' : v));
+      setStageErrors(arr => arr.map((v, i) => i === idx ? 'يرجى إدخال تفاصيل القضية.' : v));
       setStageLoading(arr => arr.map((v, i) => i === idx ? false : v));
       return;
     }
@@ -133,10 +134,10 @@ export default function Home() {
       if (res.ok) {
         setStageResults(arr => arr.map((v, i) => i === idx ? data.analysis : v));
         setTimeout(() => setStageShowResult(arr => arr.map((v, i) => i === idx ? true : v)), 100);
-        // حفظ التحليل في القضايا
+        // حفظ التحليل في نفس القضية
         const caseName = `قضية: ${text.split(' ').slice(0, 5).join(' ')}...`;
         const newStage = {
-          id: uuidv4(),
+          id: `${idx}-${btoa(unescape(encodeURIComponent(text))).slice(0,8)}-${Date.now()}`,
           stageIndex: idx,
           stage: STAGES[idx],
           input: text,
@@ -149,8 +150,19 @@ export default function Home() {
         } catch { cases = []; }
         const existingCaseIdx = cases.findIndex((c: { name: string }) => c.name === caseName);
         if (existingCaseIdx !== -1) {
-          cases[existingCaseIdx].stages.push(newStage);
+          // تحقق إذا كانت المرحلة موجودة مسبقاً (بنفس stageIndex)
+          const stages = cases[existingCaseIdx].stages;
+          const stageIdxInCase = stages.findIndex((s: { stageIndex: number }) => s.stageIndex === idx);
+          if (stageIdxInCase !== -1) {
+            // استبدل المرحلة القديمة
+            stages[stageIdxInCase] = newStage;
+          } else {
+            // أضف المرحلة الجديدة
+            stages.push(newStage);
+          }
+          cases[existingCaseIdx].stages = stages;
         } else {
+          // أنشئ قضية جديدة
           cases.unshift({
             id: newStage.id,
             name: caseName,
@@ -297,6 +309,25 @@ export default function Home() {
               <span>يمكنك الحصول على المفتاح من <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{color:theme.accent, textDecoration:'underline'}}>Google AI Studio</a></span>
             </div>
           </div>
+          {/* مربع نص واحد لتفاصيل القضية */}
+          <div style={{
+            background: theme.card,
+            borderRadius: 14,
+            boxShadow: `0 2px 12px ${theme.shadow}`,
+            padding: isMobile() ? 12 : 22,
+            marginBottom: 28,
+            border: `1.5px solid ${theme.border}`,
+          }}>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, color: theme.accent, fontSize: 16 }}>📄 تفاصيل القضية:</label>
+            <textarea
+              value={mainText}
+              onChange={e => setMainText(e.target.value)}
+              rows={6}
+              style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: isMobile() ? 8 : 12, fontSize: isMobile() ? 15 : 16, marginBottom: 0, resize: 'vertical', outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
+              placeholder="أدخل تفاصيل القضية هنا..."
+              required
+            />
+          </div>
           {/* عرض جميع المراحل */}
           {STAGES.map((stage, idx) => (
             <div key={stage} style={{
@@ -308,14 +339,6 @@ export default function Home() {
               border: `1.5px solid ${theme.border}`,
             }}>
               <div style={{ fontWeight: 800, color: theme.accent, fontSize: 18, marginBottom: 8 }}>{stage}</div>
-              <textarea
-                value={stageTexts[idx]}
-                onChange={e => setStageTexts(arr => arr.map((v, i) => i === idx ? e.target.value : v))}
-                rows={5}
-                style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: isMobile() ? 8 : 12, fontSize: isMobile() ? 15 : 16, marginBottom: 12, resize: 'vertical', outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
-                placeholder={`أدخل نص المرحلة (${stage}) هنا...`}
-                required
-              />
               <button
                 type="button"
                 disabled={stageLoading[idx]}
