@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
 // إزالة استيراد useSession, signIn, signOut
-import { saveApiKey, loadApiKey, saveHistory, loadHistory } from '../utils/db';
+import { saveApiKey, loadApiKey, saveHistory } from '../utils/db';
 
 const STAGES = [
   'المرحلة الأولى: تحديد المشكلة القانونية',
@@ -46,22 +46,6 @@ const darkTheme = {
   shadow: '#23294655',
 };
 
-// دوال تشفير وفك تشفير بسيطة (Base64)
-function encode(str: string) {
-  try {
-    return btoa(unescape(encodeURIComponent(str)));
-  } catch {
-    return '';
-  }
-}
-function decode(str: string) {
-  try {
-    return decodeURIComponent(escape(atob(str)));
-  } catch {
-    return '';
-  }
-}
-
 // أضف دالة تساعد في معرفة إذا كان العرض صغير (جوال)
 function isMobile() {
   if (typeof window === 'undefined') return false;
@@ -78,7 +62,7 @@ export default function Home() {
   const [apiKey, setApiKey] = useState('');
   const [darkMode, setDarkMode] = useState(false);
   const [showResult, setShowResult] = useState(false);
-  const [localStorageError, setLocalStorageError] = useState(false);
+  const [localStorageError] = useState(false);
   const prevApiKey = useRef("");
 
   const theme = darkMode ? darkTheme : lightTheme;
@@ -89,7 +73,6 @@ export default function Home() {
       if (val) setApiKey(val);
     });
     // تحميل سجل التحليل من قاعدة البيانات (اختياري)
-    // loadHistory().then(h => { ... });
     const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('legal_dark_mode') : null;
     if (savedTheme === '1') setDarkMode(true);
   }, []);
