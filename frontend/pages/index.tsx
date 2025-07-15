@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
 // إزالة استيراد useSession, signIn, signOut
 import { saveApiKey, loadApiKey, saveHistory } from '../utils/db';
+import { useRouter } from 'next/router';
 
 const STAGES = [
   'المرحلة الأولى: تحديد المشكلة القانونية',
@@ -64,6 +65,7 @@ export default function Home() {
   const [showResult, setShowResult] = useState(false);
   const [localStorageError] = useState(false);
   const prevApiKey = useRef("");
+  const router = useRouter();
 
   const theme = darkMode ? darkTheme : lightTheme;
 
@@ -72,7 +74,7 @@ export default function Home() {
     loadApiKey().then(val => {
       if (val) setApiKey(val);
     });
-    // تحميل سجل التحليل من قاعدة البيانات (اختياري)
+    // تحميل قائمة القضايا من قاعدة البيانات (اختياري)
     const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('legal_dark_mode') : null;
     if (savedTheme === '1') setDarkMode(true);
   }, []);
@@ -130,8 +132,10 @@ export default function Home() {
           date: new Date().toISOString(),
         });
         localStorage.setItem('legal_analysis_history', JSON.stringify(history.slice(0, 30)));
-        // حفظ السجل في قاعدة البيانات
+        // حفظ قائمة القضايا في قاعدة البيانات
         saveHistory(history.slice(0, 30));
+        // تحويل تلقائي إلى صفحة القضايا بعد نجاح التحليل
+        setTimeout(() => { router.push('/history'); }, 800);
       } else {
         // معالجة خطأ 429 (تجاوز الحد)
         if (data.error && data.error.includes('429')) {
@@ -231,10 +235,10 @@ export default function Home() {
             <Link href="/about" style={{
               color: '#fff', background: '#4f46e5cc', borderRadius: 8, padding: isMobile() ? '4px 10px' : '4px 14px', fontWeight: 700, fontSize: isMobile() ? 14 : 16, textDecoration: 'none', boxShadow: '0 1px 4px #0002', letterSpacing: 1, transition: 'background 0.2s',
             }}>؟ تعليمات</Link>
-            {/* رابط سجل التحليل */}
+            {/* رابط قائمة القضايا */}
             <Link href="/history" style={{
               color: '#fff', background: '#6366f1cc', borderRadius: 8, padding: isMobile() ? '4px 10px' : '4px 14px', fontWeight: 700, fontSize: isMobile() ? 14 : 16, textDecoration: 'none', boxShadow: '0 1px 4px #0002', letterSpacing: 1, transition: 'background 0.2s',
-            }}>📑 السجل</Link>
+            }}>📑 قائمة القضايا</Link>
           </div>
         </div>
       </header>
