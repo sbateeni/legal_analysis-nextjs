@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
 // إزالة استيراد useSession, signIn, signOut
-import { saveApiKey, loadApiKey, saveHistory, saveCases } from '../utils/db';
-import { useRouter } from 'next/router';
+import { saveApiKey, loadApiKey, saveCases } from '../utils/db';
 
 const STAGES = [
   'المرحلة الأولى: تحديد المشكلة القانونية',
@@ -65,7 +64,7 @@ export default function Home() {
   const [showResult, setShowResult] = useState(false);
   const [localStorageError] = useState(false);
   const prevApiKey = useRef("");
-  const router = useRouter();
+  // const router = useRouter();
 
   const theme = darkMode ? darkTheme : lightTheme;
 
@@ -136,7 +135,7 @@ export default function Home() {
           cases = JSON.parse(localStorage.getItem('legal_cases') || '[]');
         } catch { cases = []; }
         // ابحث عن قضية بنفس الاسم
-        const existingCaseIdx = cases.findIndex((c: any) => c.name === caseName);
+        const existingCaseIdx = cases.findIndex((c: { name: string }) => c.name === caseName);
         if (existingCaseIdx !== -1) {
           // أضف المرحلة للقضية الموجودة
           cases[existingCaseIdx].stages.push(newStage);

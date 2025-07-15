@@ -86,7 +86,7 @@ export default function History() {
         const savedHistory = typeof window !== 'undefined' ? localStorage.getItem('legal_analysis_history') : null;
         if (savedHistory) {
           const history: AnalysisHistoryItem[] = JSON.parse(savedHistory);
-          const cases: Case[] = history.map((item, idx) => ({
+          const cases: Case[] = history.map((item) => ({
             id: item.id,
             name: `قضية: ${item.input.split(' ').slice(0, 5).join(' ')}...`,
             createdAt: item.date,
@@ -142,7 +142,7 @@ export default function History() {
           if (Array.isArray(imported)) {
             // دمج القضايا (مع استبعاد التكرار حسب id)
             const merged = [...cases];
-            imported.forEach((c: any) => {
+            imported.forEach((c: Case) => {
               if (!merged.some(cc => cc.id === c.id)) merged.push(c);
             });
             setCases(merged);
@@ -210,7 +210,7 @@ export default function History() {
                 </div>
                 <div style={{fontSize:15, color:'#888', marginBottom:18}}>تاريخ الإنشاء: {new Date(c.createdAt).toLocaleString('ar-EG')}</div>
                 <div style={{display:'flex', flexDirection:'column', gap:18}}>
-                  {c.stages.map((stage, idx) => (
+                  {c.stages.map((stage) => (
                     <div key={stage.id} style={{background:theme.resultBg, borderRadius:12, boxShadow:`0 1px 6px ${theme.shadow}`, border:`1px solid ${theme.border}`, padding:isMobile()?10:18, position:'relative'}}>
                       <div style={{color:theme.accent2, fontWeight:700, fontSize:17, marginBottom:6}}><span style={{fontSize:18}}>🧩</span> {STAGES[stage.stageIndex]}</div>
                       <div style={{fontWeight:600, color:theme.accent, marginBottom:4}}>النص المدخل:</div>
