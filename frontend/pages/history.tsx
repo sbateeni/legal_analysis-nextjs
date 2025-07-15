@@ -66,6 +66,11 @@ export default function History() {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [editNameId, setEditNameId] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState<string>('');
+  // إضافة مرحلة جديدة
+  const [addStageId, setAddStageId] = useState<string | null>(null);
+  const [newStageIndex, setNewStageIndex] = useState<number>(0);
+  const [newStageInput, setNewStageInput] = useState<string>('');
+  const [addingStage, setAddingStage] = useState(false);
 
   // تحويل البيانات القديمة (history) إلى بنية قضايا عند أول تحميل
   useEffect(() => {
@@ -157,6 +162,64 @@ export default function History() {
                       <div style={{fontSize:13, color:'#888', marginTop:6}}>تاريخ المرحلة: {new Date(stage.date).toLocaleString('ar-EG')}</div>
                     </div>
                   ))}
+                  {/* إضافة مرحلة جديدة */}
+                  {addStageId === c.id ? (
+                    <form onSubmit={async e => {
+                      e.preventDefault();
+                      setAddingStage(true);
+                      // استدعاء API التحليل لإحضار المخرجات
+                      try {
+                        const res = await fetch('/api/analyze', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            text: newStageInput,
+                            stageIndex: newStageIndex,
+                            apiKey: (await (typeof window !== 'undefined' ? window.localStorage.getItem('gemini_api_key') : '')) || '',
+                          }),
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                          setCases(cs => cs.map(cc => cc.id === c.id ? {
+                            ...cc,
+                            stages: [
+                              ...cc.stages,
+                              {
+                                id: Math.random().toString(36).slice(2),
+                                stageIndex: newStageIndex,
+                                stage: STAGES[newStageIndex],
+                                input: newStageInput,
+                                output: data.analysis,
+                                date: new Date().toISOString(),
+                              }
+                            ]
+                          } : cc));
+                          setAddStageId(null);
+                          setNewStageInput('');
+                        } else {
+                          alert(data.error || 'حدث خطأ أثناء التحليل');
+                        }
+                      } catch {
+                        alert('تعذر الاتصال بالخادم');
+                      } finally {
+                        setAddingStage(false);
+                      }
+                    }} style={{background:theme.resultBg, borderRadius:12, boxShadow:`0 1px 6px ${theme.shadow}`, border:`1px solid ${theme.border}`, padding:isMobile()?10:18, marginTop:8}}>
+                      <div style={{fontWeight:600, color:theme.accent, marginBottom:4}}>إضافة مرحلة جديدة:</div>
+                      <select value={newStageIndex} onChange={e => setNewStageIndex(Number(e.target.value))} style={{width:'100%', borderRadius:8, border:`1.5px solid ${theme.accent2}`, padding:10, fontSize:16, marginBottom:8}}>
+                        {STAGES.map((stage, idx) => (
+                          <option key={stage} value={idx}>{stage}</option>
+                        ))}
+                      </select>
+                      <textarea value={newStageInput} onChange={e => setNewStageInput(e.target.value)} rows={3} style={{width:'100%', borderRadius:8, border:`1.5px solid ${theme.accent2}`, padding:10, fontSize:16, marginBottom:8}} placeholder="أدخل نص المرحلة الجديدة..." required />
+                      <div style={{display:'flex', gap:8}}>
+                        <button type="submit" disabled={addingStage} style={{background:theme.accent2, color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:15, cursor:addingStage?'not-allowed':'pointer'}}>إضافة</button>
+                        <button type="button" onClick={() => setAddStageId(null)} style={{background:'#eee', color:theme.accent2, border:'none', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:15, cursor:'pointer'}}>إلغاء</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <button onClick={() => {setAddStageId(c.id); setNewStageInput(''); setNewStageIndex(0);}} style={{background:theme.accent2, color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:15, cursor:'pointer', marginTop:8}}>+ إضافة مرحلة جديدة</button>
+                  )}
                 </div>
                 <button onClick={() => handleDeleteCase(c.id)} style={{marginTop:18, background:'#ff6b6b', color:'#fff', border:'none', borderRadius:8, padding:isMobile()?'7px 14px':'8px 22px', fontWeight:700, fontSize:isMobile()?14:16, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b33', transition:'background 0.2s'}}>حذف القضية</button>
               </div>
