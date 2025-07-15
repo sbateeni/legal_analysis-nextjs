@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { v4 as uuidv4 } from 'uuid';
 // إزالة استيراد useSession, signIn, signOut
 import { saveApiKey, loadApiKey, saveCases } from '../utils/db';
 
@@ -54,14 +53,8 @@ function isMobile() {
 
 export default function Home() {
   // إزالة كل كود متعلق بالجلسة أو زر تسجيل الدخول/الخروج
-  const [text, setText] = useState('');
-  const [stageIndex, setStageIndex] = useState(0);
-  const [result, setResult] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [darkMode, setDarkMode] = useState(false);
-  const [showResult, setShowResult] = useState(false);
   const [localStorageError] = useState(false);
   const prevApiKey = useRef("");
   // const router = useRouter();
