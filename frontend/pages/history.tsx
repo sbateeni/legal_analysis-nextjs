@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useSession, signIn } from "next-auth/react";
 
 const STAGES = [
   'المرحلة الأولى: تحديد المشكلة القانونية',
@@ -45,8 +44,12 @@ type AnalysisHistoryItem = {
   date: string;
 };
 
+function isMobile() {
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth <= 600;
+}
+
 export default function History() {
-  const { data: session, status } = useSession();
   const [darkMode, setDarkMode] = useState(false);
   const theme = darkMode ? darkTheme : lightTheme;
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
@@ -66,28 +69,14 @@ export default function History() {
     setHistory(h => h.filter(item => item.id !== id));
   };
 
-  if (status !== 'loading' && !session) {
-    return (
-      <div style={{ fontFamily: 'Tajawal, Arial, sans-serif', direction: 'rtl', minHeight: '100vh', background: lightTheme.background, color: lightTheme.text, padding: 0, margin: 0, transition: 'background 0.4s' }}>
-        <main style={{ maxWidth: 500, margin: '0 auto', padding: '2.5rem 1rem', textAlign: 'center' }}>
-          <div style={{ background: lightTheme.card, borderRadius: 18, boxShadow: `0 2px 12px ${lightTheme.shadow}`, padding: 32, border: `1.5px solid ${lightTheme.border}` }}>
-            <span style={{ fontSize: 44 }}>⚖️</span>
-            <h1 style={{ color: lightTheme.accent, fontWeight: 900, fontSize: 30, margin: '18px 0 10px 0', letterSpacing: 1 }}>سجل التحليل</h1>
-            <p style={{ fontSize: 18, color: lightTheme.text, marginBottom: 18, lineHeight: 2 }}>
-              يجب تسجيل الدخول بحساب Google للاطلاع على سجل تحليلاتك القانونية.
-            </p>
-            <button onClick={() => signIn('google')} style={{ background: lightTheme.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 32px', fontWeight: 800, fontSize: 20, cursor: 'pointer', boxShadow: `0 2px 8px ${lightTheme.accent}33`, marginTop: 10 }}>
-              <span style={{ fontSize: 24, marginLeft: 8 }}>🔑</span> تسجيل الدخول بحساب Google
-            </button>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   return (
     <div style={{ fontFamily: 'Tajawal, Arial, sans-serif', direction: 'rtl', minHeight: '100vh', background: theme.background, color: theme.text, padding: 0, margin: 0, transition: 'background 0.4s' }}>
-      <main style={{ maxWidth: 800, margin: '0 auto', padding: '2.5rem 1rem' }}>
+      <main style={{
+        maxWidth: 800,
+        width: '100%',
+        margin: '0 auto',
+        padding: isMobile() ? '1rem 0.5rem' : '2.5rem 1rem',
+      }}>
         <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:10, marginBottom:18}}>
           <span style={{fontSize:32}}>📑</span>
           <h1 style={{ color: theme.accent, fontWeight: 900, fontSize: 28, margin: 0, letterSpacing: 1 }}>سجل مراحل التحليل</h1>
@@ -97,7 +86,17 @@ export default function History() {
         ) : (
           <div style={{display:'flex', flexDirection:'column', gap:24}}>
             {history.map(item => (
-              <div key={item.id} style={{ background: theme.card, borderRadius: 16, boxShadow: `0 2px 12px ${theme.shadow}`, border: `1.5px solid ${theme.border}`, padding: 24, position:'relative', transition:'box-shadow 0.2s' }}>
+              <div key={item.id} style={{
+                background: theme.card,
+                borderRadius: 16,
+                boxShadow: `0 2px 12px ${theme.shadow}`,
+                border: `1.5px solid ${theme.border}`,
+                padding: isMobile() ? 12 : 24,
+                position:'relative',
+                transition:'box-shadow 0.2s',
+                width: '100%',
+                boxSizing: 'border-box',
+              }}>
                 <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10}}>
                   <div style={{color:theme.accent2, fontWeight:700, fontSize:17}}>
                     <span style={{fontSize:20}}>🧩</span> {STAGES[item.stageIndex]}
@@ -112,7 +111,7 @@ export default function History() {
                   <span style={{fontWeight:600, color:theme.accent}}>مخرجات التحليل:</span>
                   <div style={{background:darkMode?'#181a2a':'#f5f7ff', borderRadius:8, padding:'8px 12px', marginTop:4, fontSize:16, whiteSpace:'pre-line', border:`1px solid ${theme.border}`}}>{item.output}</div>
                 </div>
-                <button onClick={() => handleDelete(item.id)} style={{position:'absolute', left:18, top:18, background:'#ff6b6b', color:'#fff', border:'none', borderRadius:8, padding:'6px 16px', fontWeight:700, fontSize:15, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b33', transition:'background 0.2s'}}>حذف</button>
+                <button onClick={() => handleDelete(item.id)} style={{position:'absolute', left:18, top:18, background:'#ff6b6b', color:'#fff', border:'none', borderRadius:8, padding:isMobile() ? '5px 10px' : '6px 16px', fontWeight:700, fontSize:isMobile() ? 13 : 15, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b33', transition:'background 0.2s'}}>حذف</button>
               </div>
             ))}
           </div>

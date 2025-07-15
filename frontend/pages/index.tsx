@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
-import { useSession, signIn, signOut } from "next-auth/react";
+// إزالة استيراد useSession, signIn, signOut
 
 const STAGES = [
   'المرحلة الأولى: تحديد المشكلة القانونية',
@@ -61,8 +61,14 @@ function decode(str: string) {
   }
 }
 
+// أضف دالة تساعد في معرفة إذا كان العرض صغير (جوال)
+function isMobile() {
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth <= 600;
+}
+
 export default function Home() {
-  const { data: session, status } = useSession();
+  // إزالة كل كود متعلق بالجلسة أو زر تسجيل الدخول/الخروج
   const [text, setText] = useState('');
   const [stageIndex, setStageIndex] = useState(0);
   const [result, setResult] = useState<string | null>(null);
@@ -100,40 +106,16 @@ export default function Home() {
   }, [darkMode]);
 
   // حفظ بيانات المستخدم عند تسجيل الدخول
-  useEffect(() => {
-    if (session?.user?.email) {
-      const provider = session.user.email.endsWith('@github.com') ? 'github' : 'google';
-      fetch("/api/save-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: session.user.name,
-          email: session.user.email,
-          image: session.user.image,
-          provider,
-        }),
-      });
-    }
-  }, [session]);
+  // إزالة كود متعلق بالجلسة
 
   // حفظ apiKey في Blob Storage عند تغييره
   useEffect(() => {
-    if (session?.user?.email && apiKey && apiKey !== prevApiKey.current) {
-      const provider = session.user.email.endsWith('@github.com') ? 'github' : 'google';
-      fetch("/api/save-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: session.user.name,
-          email: session.user.email,
-          image: session.user.image,
-          provider,
-          apiKey,
-        }),
-      });
+    // إزالة كود متعلق بالجلسة
+    if (apiKey && apiKey !== prevApiKey.current) {
+      // إزالة كود متعلق بالجلسة
       prevApiKey.current = apiKey;
     }
-  }, [apiKey, session]);
+  }, [apiKey]);
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,6 +159,7 @@ export default function Home() {
     }
   };
 
+  // إظهار النموذج مباشرة لأي مستخدم
   return (
     <div style={{
       fontFamily: 'Tajawal, Arial, sans-serif',
@@ -238,45 +221,26 @@ export default function Home() {
           position: 'absolute', right: 120, top: 18, color: '#fff', background: '#6366f1cc', borderRadius: 8, padding: '4px 14px', fontWeight: 700, fontSize: 16, textDecoration: 'none', boxShadow: '0 1px 4px #0002', letterSpacing: 1, transition: 'background 0.2s',
         }}>📑 السجل</Link>
         {/* بيانات المستخدم أو زر تسجيل الدخول/الخروج */}
-        <div style={{position:'absolute', left: 70, top: 10, display:'flex', alignItems:'center', gap:8}}>
-          {status === 'loading' ? null : session ? (
-            <>
-              {session.user?.image && <img src={session.user.image} alt="user" style={{width:32, height:32, borderRadius:'50%', border:'2px solid #fff'}} />}
-              <span style={{fontWeight:700, fontSize:15}}>{session.user?.name || session.user?.email}</span>
-              <button onClick={() => signOut()} style={{background:'#fff', color:theme.accent, border:'none', borderRadius:8, padding:'4px 12px', fontWeight:700, fontSize:15, cursor:'pointer', marginRight:8}}>تسجيل الخروج</button>
-            </>
-          ) : (
-            <button onClick={() => signIn('google')} style={{background:'#fff', color:theme.accent, border:'none', borderRadius:8, padding:'6px 18px', fontWeight:800, fontSize:17, cursor:'pointer', boxShadow:'0 1px 4px #fff8', marginRight:8}}>
-              <span style={{fontSize:20, marginLeft:6}}>🔑</span> تسجيل الدخول بحساب Google
-            </button>
-          )}
-        </div>
+        {/* إزالة كود متعلق بالجلسة */}
       </header>
       {/* إذا لم يكن المستخدم مسجلاً، عرض رسالة ترحيبية فقط */}
-      {status !== 'loading' && !session ? (
-        <main style={{maxWidth:500, margin:'0 auto', padding:'2.5rem 1rem', textAlign:'center'}}>
-          <div style={{background:theme.card, borderRadius:18, boxShadow:`0 2px 12px ${theme.shadow}`, padding:32, border:`1.5px solid ${theme.border}`}}>
-            <span style={{fontSize:44}}>⚖️</span>
-            <h1 style={{color:theme.accent, fontWeight:900, fontSize:30, margin:'18px 0 10px 0', letterSpacing:1}}>منصة التحليل القانوني الذكي</h1>
-            <p style={{fontSize:18, color:theme.text, marginBottom:18, lineHeight:2}}>
-              منصة متقدمة لتحليل النصوص القانونية العربية بدقة واحترافية عبر 12 مرحلة تحليلية متكاملة.<br/>
-              <b>يرجى تسجيل الدخول بحساب Google للمتابعة والاستفادة من جميع الميزات.</b>
-            </p>
-            <button onClick={() => signIn('google')} style={{background:theme.accent, color:'#fff', border:'none', borderRadius:8, padding:'12px 32px', fontWeight:800, fontSize:20, cursor:'pointer', boxShadow:`0 2px 8px ${theme.accent}33`, marginTop:10}}>
-              <span style={{fontSize:24, marginLeft:8}}>🔑</span> تسجيل الدخول بحساب Google
-            </button>
-          </div>
-        </main>
-      ) : (
-        <main style={{ maxWidth: 600, margin: '0 auto', padding: '2rem 1rem' }}>
+      {/* إزالة كود متعلق بالجلسة */}
+      <main style={{
+        maxWidth: 600,
+        width: '100%',
+        margin: '0 auto',
+        padding: isMobile() ? '1rem 0.5rem' : '2rem 1rem',
+      }}>
           {/* خانة مفتاح API */}
           <div style={{
             background: theme.card,
             borderRadius: 14,
             boxShadow: `0 2px 12px ${theme.shadow}`,
-            padding: 18,
-            marginBottom: 28,
+            padding: isMobile() ? 10 : 18,
+            marginBottom: isMobile() ? 16 : 28,
             border: `1.5px solid ${theme.border}`,
+            width: '100%',
+            boxSizing: 'border-box',
           }}>
             <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, color: theme.accent, fontSize: 16 }}>🔑 مفتاح Gemini API الخاص بك:</label>
             <input
@@ -284,7 +248,7 @@ export default function Home() {
               value={apiKey}
               onChange={e => setApiKey(e.target.value)}
               placeholder="أدخل مفتاح Gemini API هنا..."
-              style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: 12, fontSize: 16, marginBottom: 0, outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
+              style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: isMobile() ? 8 : 12, fontSize: isMobile() ? 15 : 16, marginBottom: 0, outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
               dir="ltr"
               required
             />
@@ -306,7 +270,7 @@ export default function Home() {
               value={text}
               onChange={e => setText(e.target.value)}
               rows={6}
-              style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: 12, fontSize: 16, marginBottom: 16, resize: 'vertical', outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
+              style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: isMobile() ? 8 : 12, fontSize: isMobile() ? 15 : 16, marginBottom: 16, resize: 'vertical', outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
               placeholder="أدخل النص القانوني هنا..."
               required
             />
@@ -323,7 +287,7 @@ export default function Home() {
             <button
               type="submit"
               disabled={loading}
-              style={{ width: '100%', background: `linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color: '#fff', border: 'none', borderRadius: 8, padding: '14px 0', fontSize: 19, fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', marginTop: 8, boxShadow: `0 2px 8px ${theme.accent}33`, letterSpacing: 1, transition: 'background 0.2s' }}
+              style={{ width: '100%', background: `linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color: '#fff', border: 'none', borderRadius: 8, padding: isMobile() ? '10px 0' : '14px 0', fontSize: isMobile() ? 16 : 19, fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', marginTop: 8, boxShadow: `0 2px 8px ${theme.accent}33`, letterSpacing: 1, transition: 'background 0.2s' }}
             >
               {loading ? '⏳ جاري التحليل...' : '🚀 ابدأ التحليل'}
             </button>
@@ -352,7 +316,6 @@ export default function Home() {
             &copy; {new Date().getFullYear()} منصة التحليل القانوني الذكي
           </footer>
         </main>
-      )}
     </div>
   );
 } 
