@@ -424,8 +424,18 @@ export default function Home() {
             <div style={{ color: '#888', fontSize: 13, marginTop: 6 }}>
               <span>يمكنك الحصول على المفتاح من <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{color:theme.accent, textDecoration:'underline'}}>Google AI Studio</a></span>
             </div>
-            {/* مربع إدخال اسم القضية */}
-            <div style={{ marginTop: 16 }}>
+          </div>
+          {/* مربع نص واحد لتفاصيل القضية */}
+          <div style={{
+            background: theme.card,
+            borderRadius: 14,
+            boxShadow: `0 2px 12px ${theme.shadow}`,
+            padding: isMobile() ? 12 : 22,
+            marginBottom: 28,
+            border: `1.5px solid ${theme.border}`,
+          }}>
+            {/* مربع إدخال اسم القضية في رأس مربع التفاصيل */}
+            <div style={{ marginBottom: 12 }}>
               <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: theme.accent2, fontSize: 15 }}>📛 اسم القضية:</label>
               <input
                 type="text"
@@ -436,15 +446,6 @@ export default function Home() {
                 required
               />
             </div>
-          {/* مربع نص واحد لتفاصيل القضية */}
-          <div style={{
-            background: theme.card,
-            borderRadius: 14,
-            boxShadow: `0 2px 12px ${theme.shadow}`,
-            padding: isMobile() ? 12 : 22,
-            marginBottom: 28,
-            border: `1.5px solid ${theme.border}`,
-          }}>
             <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, color: theme.accent, fontSize: 16 }}>📄 تفاصيل القضية:</label>
             <textarea
               value={mainText}
