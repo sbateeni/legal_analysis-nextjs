@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 // إزالة استيراد useSession, signIn, signOut
-import { saveApiKey, loadApiKey, saveCases } from '../utils/db';
+import { saveApiKey, loadApiKey, addCase, getAllCases, clearAllCases } from '../utils/db';
+import { set as idbSet, get as idbGet } from 'idb-keyval';
 
 const STAGES = [
   'المرحلة الأولى: تحديد المشكلة القانونية',
@@ -69,7 +70,6 @@ export default function Home() {
   const [apiKey, setApiKey] = useState('');
   const [caseNameInput, setCaseNameInput] = useState('');
   const [darkMode, setDarkMode] = useState(false);
-  const [localStorageError] = useState(false);
   const prevApiKey = useRef("");
   // const router = useRouter();
 
@@ -93,9 +93,10 @@ export default function Home() {
     loadApiKey().then(val => {
       if (val) setApiKey(val);
     });
-    // تحميل قائمة القضايا من قاعدة البيانات (اختياري)
-    const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('legal_dark_mode') : null;
-    if (savedTheme === '1') setDarkMode(true);
+    // حفظ واسترجاع الوضع الليلي من IndexedDB
+    idbGet('legal_dark_mode').then((savedTheme) => {
+      if (savedTheme === '1') setDarkMode(true);
+    });
   }, []);
 
   useEffect(() => {
@@ -104,7 +105,7 @@ export default function Home() {
   }, [apiKey]);
 
   useEffect(() => {
-    localStorage.setItem('legal_dark_mode', darkMode ? '1' : '0');
+    idbSet('legal_dark_mode', darkMode ? '1' : '0');
   }, [darkMode]);
 
   // حفظ بيانات المستخدم عند تسجيل الدخول
@@ -204,31 +205,14 @@ export default function Home() {
           output: data.analysis,
           date: new Date().toISOString(),
         };
-        let cases = [];
-        try {
-          cases = JSON.parse(localStorage.getItem('legal_cases') || '[]');
-        } catch { cases = []; }
-        // ابحث عن قضية بنفس الاسم، لكن إذا وجدت، تحقق من id مختلف دائماً
-        const sameNameCases = cases.filter((c: { name: string }) => c.name === caseName);
         let newCaseId = `${caseName}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-        if (sameNameCases.length > 0) {
-          // أنشئ قضية جديدة بنفس الاسم لكن id مختلف
-          cases.unshift({
-            id: newCaseId,
-            name: caseName,
-            createdAt: newStage.date,
-            stages: [newStage],
-          });
-        } else {
-          // أنشئ قضية جديدة
-          cases.unshift({
-            id: newCaseId,
-            name: caseName,
-            createdAt: newStage.date,
-            stages: [newStage],
-          });
-        }
-        saveCases(cases);
+        // أضف القضية مباشرة عبر دالة addCase
+        await addCase({
+          id: newCaseId,
+          name: caseName,
+          createdAt: newStage.date,
+          stages: [newStage],
+        });
       } else {
         if (data.error && data.error.includes('429')) {
           setStageErrors(arr => arr.map((v, i) => i === idx ? 'لقد تجاوزت الحد المسموح به لعدد الطلبات على خدمة Gemini API. يرجى الانتظار دقيقة ثم إعادة المحاولة. إذا تكررت المشكلة، استخدم مفتاح API آخر أو راجع إعدادات حسابك في Google AI Studio.' : v));
@@ -242,31 +226,6 @@ export default function Home() {
       setStageLoading(arr => arr.map((v, i) => i === idx ? false : v));
     }
   };
-
-  // دالة لتصدير المفتاح كملف نصي
-  // function exportApiKey() {
-  //   const blob = new Blob([apiKey], { type: 'text/plain' });
-  //   const url = URL.createObjectURL(blob);
-  //   const a = document.createElement('a');
-  //   a.href = url;
-  //   a.download = 'gemini_api_key.txt';
-  //   document.body.appendChild(a);
-  //   a.click();
-  //   document.body.removeChild(a);
-  //   URL.revokeObjectURL(url);
-  // }
-  // دالة لاستيراد المفتاح من ملف
-  // function importApiKey(e: React.ChangeEvent<HTMLInputElement>) {
-  //   const file = e.target.files?.[0];
-  //   if (!file) return;
-  //   const reader = new FileReader();
-  //   reader.onload = function(ev) {
-  //     if (typeof ev.target?.result === 'string') {
-  //       setApiKey(ev.target.result.trim());
-  //     }
-  //   };
-  //   reader.readAsText(file);
-  // }
 
   // دالة توليد العريضة النهائية
   const handleGenerateFinalPetition = async () => {
@@ -295,10 +254,7 @@ export default function Home() {
         setFinalPetitionResult(data.analysis);
         // إضافة العريضة النهائية كمرحلة خاصة في آخر قضية محفوظة
         try {
-          let cases = [];
-          try {
-            cases = JSON.parse(localStorage.getItem('legal_cases') || '[]');
-          } catch { cases = []; }
+          let cases = await getAllCases();
           if (cases.length > 0) {
             const lastCaseIdx = 0; // أحدث قضية في الأعلى
             const finalStage = {
@@ -312,7 +268,7 @@ export default function Home() {
             // تحقق من عدم وجود عريضة نهائية مكررة
             if (!cases[lastCaseIdx].stages.some((s: AnalysisHistoryItem) => s.stageIndex === 999)) {
               cases[lastCaseIdx].stages.push(finalStage);
-              localStorage.setItem('legal_cases', JSON.stringify(cases));
+              await idbSet('legal_cases', JSON.stringify(cases));
             }
           }
         } catch {}
@@ -328,137 +284,99 @@ export default function Home() {
 
   // إظهار النموذج مباشرة لأي مستخدم
   return (
-    <div style={{
-      fontFamily: 'Tajawal, Arial, sans-serif',
-      direction: 'rtl',
-      minHeight: '100vh',
-      background: theme.background,
-      color: theme.text,
-      padding: 0,
-      margin: 0,
-      transition: 'background 0.4s',
-    }}>
-      {/* تنبيه في حال تعذر استخدام LocalStorage */}
-      {localStorageError && (
-        <div style={{background:'#fff0f0', color:'#e53e3e', borderRadius:8, padding:16, margin:'16px auto', maxWidth:500, textAlign:'center', fontWeight:700, fontSize:16, boxShadow:'0 1px 4px #e53e3e22'}}>
-          ⚠️ لم يتمكن الموقع من حفظ مفتاح Gemini API على هذا الجهاز.<br/>
-          قد يكون السبب أنك تستخدم وضع التصفح الخاص (Incognito/Private) أو متصفح لا يدعم LocalStorage.<br/>
-          يرجى تجربة متصفح آخر أو الخروج من وضع التصفح الخاص.
-        </div>
-      )}
-      {/* شريط علوي جديد */}
-      <header style={{
-        width: '100%',
-        background: `linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`,
-        color: '#fff',
-        padding: isMobile() ? '16px 0 10px 0' : '18px 0 12px 0',
-        marginBottom: 32,
-        boxShadow: '0 2px 8px #0002',
-        textAlign: 'center',
-        letterSpacing: 1,
-        fontWeight: 800,
-        fontSize: isMobile() ? 22 : 26,
-        borderBottomLeftRadius: 18,
-        borderBottomRightRadius: 18,
-        display: 'block',
-        position: 'relative',
+    <>
+      <div style={{
+        fontFamily: 'Tajawal, Arial, sans-serif',
+        direction: 'rtl',
+        minHeight: '100vh',
+        background: theme.background,
+        color: theme.text,
+        padding: 0,
+        margin: 0,
+        transition: 'background 0.4s',
       }}>
-        <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap: isMobile() ? 10 : 14}}>
-          <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:12}}>
-            <span style={{fontSize: isMobile() ? 26 : 30}}>⚖️</span>
-            <span>منصة التحليل القانوني الذكي</span>
-          </div>
-          <div style={{display:'flex', flexDirection:'row', alignItems:'center', justifyContent:'center', gap:isMobile() ? 8 : 18, marginTop: isMobile() ? 2 : 6}}>
-            {/* زر الوضع الليلي */}
-            <button
-              onClick={() => setDarkMode(dm => !dm)}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer', fontSize: isMobile() ? 22 : 26, color: '#fff', outline: 'none',
-                transition: 'color 0.2s',
-                padding: 0,
-              }}
-              aria-label="تبديل الوضع الليلي"
-            >
-              {darkMode ? '🌙' : '☀️'}
-            </button>
-            {/* رابط صفحة التعليمات */}
-            <Link href="/about" style={{
-              color: '#fff', background: '#4f46e5cc', borderRadius: 8, padding: isMobile() ? '4px 10px' : '4px 14px', fontWeight: 700, fontSize: isMobile() ? 14 : 16, textDecoration: 'none', boxShadow: '0 1px 4px #0002', letterSpacing: 1, transition: 'background 0.2s',
-            }}>؟ تعليمات</Link>
-            {/* رابط قائمة القضايا */}
-            <Link href="/history" style={{
-              color: '#fff', background: '#6366f1cc', borderRadius: 8, padding: isMobile() ? '4px 10px' : '4px 14px', fontWeight: 700, fontSize: isMobile() ? 14 : 16, textDecoration: 'none', boxShadow: '0 1px 4px #0002', letterSpacing: 1, transition: 'background 0.2s',
-            }}>📑 قائمة القضايا</Link>
-          </div>
-        </div>
-      </header>
-      {/* إذا لم يكن المستخدم مسجلاً، عرض رسالة ترحيبية فقط */}
-      {/* إزالة كود متعلق بالجلسة */}
-      <main style={{
-        maxWidth: 600,
-        width: '100%',
-        margin: '0 auto',
-        padding: isMobile() ? '1rem 0.5rem' : '2rem 1rem',
-      }}>
-          {/* خانة مفتاح API */}
-          <div style={{
-            background: theme.card,
-            borderRadius: 14,
-            boxShadow: `0 2px 12px ${theme.shadow}`,
-            padding: isMobile() ? 10 : 18,
-            marginBottom: isMobile() ? 16 : 28,
-            border: `1.5px solid ${theme.border}`,
-            width: '100%',
-            boxSizing: 'border-box',
-          }}>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, color: theme.accent, fontSize: 16 }}>🔑 مفتاح Gemini API الخاص بك:</label>
-            <input
-              type="text"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder="أدخل مفتاح Gemini API هنا..."
-              style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: isMobile() ? 8 : 12, fontSize: isMobile() ? 15 : 16, marginBottom: 0, outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
-              dir="ltr"
-              required
-            />
-            <div style={{ color: '#888', fontSize: 13, marginTop: 6 }}>
-              <span>يمكنك الحصول على المفتاح من <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{color:theme.accent, textDecoration:'underline'}}>Google AI Studio</a></span>
+        {/* تنبيه في حال تعذر استخدام LocalStorage */}
+        {/* حذف كل كود أو رسالة متعلقة بـ localStorageError أو تنبيه localStorage */}
+        {/* شريط علوي جديد */}
+        <header style={{
+          width: '100%',
+          background: `linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`,
+          color: '#fff',
+          padding: isMobile() ? '16px 0 10px 0' : '18px 0 12px 0',
+          marginBottom: 32,
+          boxShadow: '0 2px 8px #0002',
+          textAlign: 'center',
+          letterSpacing: 1,
+          fontWeight: 800,
+          fontSize: isMobile() ? 22 : 26,
+          borderBottomLeftRadius: 18,
+          borderBottomRightRadius: 18,
+          display: 'block',
+          position: 'relative',
+        }}>
+          <nav style={{display:'flex', flexDirection:'column', alignItems:'center', gap: isMobile() ? 10 : 14}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:12}}>
+              <span style={{fontSize: isMobile() ? 26 : 30}}>⚖️</span>
+              <span>منصة التحليل القانوني الذكي</span>
             </div>
-          </div>
-          {/* مربع نص واحد لتفاصيل القضية */}
-          <div style={{
-            background: theme.card,
-            borderRadius: 14,
-            boxShadow: `0 2px 12px ${theme.shadow}`,
-            padding: isMobile() ? 12 : 22,
-            marginBottom: 28,
-            border: `1.5px solid ${theme.border}`,
-          }}>
-            {/* مربع إدخال اسم القضية في رأس مربع التفاصيل */}
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: theme.accent2, fontSize: 15 }}>📛 اسم القضية:</label>
+            <div style={{display:'flex', flexDirection:'row', alignItems:'center', justifyContent:'center', gap:isMobile() ? 8 : 18, marginTop: isMobile() ? 2 : 6}}>
+              {/* زر الوضع الليلي */}
+              <button
+                onClick={() => setDarkMode(dm => !dm)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer', fontSize: isMobile() ? 22 : 26, color: '#fff', outline: 'none',
+                  transition: 'color 0.2s',
+                  padding: 0,
+                }}
+                aria-label="تبديل الوضع الليلي"
+              >
+                {darkMode ? '🌙' : '☀️'}
+              </button>
+              {/* روابط التنقل */}
+              <Link href="/about" style={{
+                color: '#fff', background: '#4f46e5cc', borderRadius: 8, padding: isMobile() ? '4px 10px' : '4px 14px', fontWeight: 700, fontSize: isMobile() ? 14 : 16, textDecoration: 'none', boxShadow: '0 1px 4px #0002', letterSpacing: 1, transition: 'background 0.2s',
+              }}>؟ تعليمات</Link>
+              <Link href="/history" style={{
+                color: '#fff', background: '#6366f1cc', borderRadius: 8, padding: isMobile() ? '4px 10px' : '4px 14px', fontWeight: 700, fontSize: isMobile() ? 14 : 16, textDecoration: 'none', boxShadow: '0 1px 4px #0002', letterSpacing: 1, transition: 'background 0.2s',
+              }}>📑 قائمة القضايا</Link>
+            </div>
+          </nav>
+        </header>
+        {/* إذا لم يكن المستخدم مسجلاً، عرض رسالة ترحيبية فقط */}
+        {/* إزالة كود متعلق بالجلسة */}
+        <main style={{
+          maxWidth: 600,
+          width: '100%',
+          margin: '0 auto',
+          padding: isMobile() ? '1rem 0.5rem' : '2rem 1rem',
+        }}>
+            {/* خانة مفتاح API */}
+            <div style={{
+              background: theme.card,
+              borderRadius: 14,
+              boxShadow: `0 2px 12px ${theme.shadow}`,
+              padding: isMobile() ? 10 : 18,
+              marginBottom: isMobile() ? 16 : 28,
+              border: `1.5px solid ${theme.border}`,
+              width: '100%',
+              boxSizing: 'border-box',
+            }}>
+              <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, color: theme.accent, fontSize: 16 }}>🔑 مفتاح Gemini API الخاص بك:</label>
               <input
                 type="text"
-                value={caseNameInput}
-                onChange={e => setCaseNameInput(e.target.value)}
-                placeholder="أدخل اسم القضية (مثال: قضية إيجار 2024)"
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                placeholder="أدخل مفتاح Gemini API هنا..."
                 style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: isMobile() ? 8 : 12, fontSize: isMobile() ? 15 : 16, marginBottom: 0, outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
+                dir="ltr"
                 required
               />
+              <div style={{ color: '#888', fontSize: 13, marginTop: 6 }}>
+                <span>يمكنك الحصول على المفتاح من <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{color:theme.accent, textDecoration:'underline'}}>Google AI Studio</a></span>
+              </div>
             </div>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, color: theme.accent, fontSize: 16 }}>📄 تفاصيل القضية:</label>
-            <textarea
-              value={mainText}
-              onChange={e => setMainText(e.target.value)}
-              rows={6}
-              style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: isMobile() ? 8 : 12, fontSize: isMobile() ? 15 : 16, marginBottom: 0, resize: 'vertical', outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
-              placeholder="أدخل تفاصيل القضية هنا..."
-              required
-            />
-          </div>
-          {/* عرض جميع المراحل */}
-          {ALL_STAGES.map((stage, idx) => (
-            <div key={stage} style={{
+            {/* مربع نص واحد لتفاصيل القضية */}
+            <div style={{
               background: theme.card,
               borderRadius: 14,
               boxShadow: `0 2px 12px ${theme.shadow}`,
@@ -466,57 +384,104 @@ export default function Home() {
               marginBottom: 28,
               border: `1.5px solid ${theme.border}`,
             }}>
-              <div style={{ fontWeight: 800, color: theme.accent, fontSize: 18, marginBottom: 8 }}>{stage}</div>
-              {/* ملخص التحليل السابق */}
-              {idx > 0 && stageResults[idx-1] && (
-                <div style={{
-                  background: theme.resultBg,
-                  borderRadius: 8,
-                  boxShadow: `0 1px 4px ${theme.shadow}`,
-                  padding: 10,
-                  marginBottom: 10,
-                  border: `1px solid ${theme.input}`,
-                  color: theme.text,
-                  fontSize: 15,
-                  opacity: 0.95,
-                }}>
-                  <b>ملخص المرحلة السابقة:</b>
-                  <div style={{ whiteSpace: 'pre-line', marginTop: 4 }}>{stageResults[idx-1]}</div>
-                </div>
-              )}
-              {/* إذا كانت المرحلة الأخيرة، غير نص الزر */}
-              <button
-                type="button"
-                disabled={stageLoading[idx]}
-                onClick={() => handleAnalyzeStage(idx)}
-                style={{ width: '100%', background: `linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color: '#fff', border: 'none', borderRadius: 8, padding: isMobile() ? '10px 0' : '14px 0', fontSize: isMobile() ? 16 : 19, fontWeight: 800, cursor: stageLoading[idx] ? 'not-allowed' : 'pointer', marginTop: 8, boxShadow: `0 2px 8px ${theme.accent}33`, letterSpacing: 1, transition: 'background 0.2s' }}
-              >
-                {stageLoading[idx] ? (idx === ALL_STAGES.length - 1 ? '⏳ جاري توليد العريضة النهائية...' : '⏳ جاري التحليل...') : (idx === ALL_STAGES.length - 1 ? '📜 توليد العريضة القانونية النهائية' : `📜 تحليل ${stage}`)}
-              </button>
-              {stageErrors[idx] && <div style={{ color: theme.errorText, background: theme.errorBg, borderRadius: 8, padding: 12, marginTop: 12, textAlign: 'center', fontWeight: 700, fontSize: 15, boxShadow: `0 1px 4px ${theme.errorText}22` }}>❌ {stageErrors[idx]}</div>}
-              {stageResults[idx] && (
-                <div style={{
-                  background: theme.resultBg,
-                  borderRadius: 12,
-                  boxShadow: `0 2px 12px ${theme.shadow}`,
-                  padding: 18,
-                  marginTop: 16,
-                  border: `1.5px solid ${theme.input}`,
-                  color: theme.text,
-                  opacity: stageShowResult[idx] ? 1 : 0,
-                  transform: stageShowResult[idx] ? 'translateY(0)' : 'translateY(30px)',
-                  transition: 'opacity 0.7s, transform 0.7s',
-                }}>
-                  <h3 style={{ color: theme.accent, marginBottom: 10, fontSize: 17, fontWeight: 800, letterSpacing: 1 }}>🔍 نتيجة التحليل</h3>
-                  <div style={{ whiteSpace: 'pre-line', fontSize: 16, lineHeight: 2 }}>{stageResults[idx]}</div>
-                </div>
-              )}
+              {/* مربع إدخال اسم القضية في رأس مربع التفاصيل */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: theme.accent2, fontSize: 15 }}>📛 اسم القضية:</label>
+                <input
+                  type="text"
+                  value={caseNameInput}
+                  onChange={e => setCaseNameInput(e.target.value)}
+                  placeholder="أدخل اسم القضية (مثال: قضية إيجار 2024)"
+                  style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: isMobile() ? 8 : 12, fontSize: isMobile() ? 15 : 16, marginBottom: 0, outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
+                  required
+                />
+              </div>
+              <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, color: theme.accent, fontSize: 16 }}>📄 تفاصيل القضية:</label>
+              <textarea
+                value={mainText}
+                onChange={e => setMainText(e.target.value)}
+                rows={6}
+                style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: isMobile() ? 8 : 12, fontSize: isMobile() ? 15 : 16, marginBottom: 0, resize: 'vertical', outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
+                placeholder="أدخل تفاصيل القضية هنا..."
+                required
+              />
             </div>
-          ))}
-          <footer style={{ textAlign: 'center', color: '#888', marginTop: 32, fontSize: 15 }}>
-            &copy; {new Date().getFullYear()} منصة التحليل القانوني الذكي
-          </footer>
-        </main>
-    </div>
+            {/* عرض جميع المراحل */}
+            {ALL_STAGES.map((stage, idx) => (
+              <div key={stage} style={{
+                background: theme.card,
+                borderRadius: 14,
+                boxShadow: `0 2px 12px ${theme.shadow}`,
+                padding: isMobile() ? 12 : 22,
+                marginBottom: 28,
+                border: `1.5px solid ${theme.border}`,
+              }}>
+                <div style={{ fontWeight: 800, color: theme.accent, fontSize: 18, marginBottom: 8 }}>{stage}</div>
+                {/* ملخص التحليل السابق */}
+                {idx > 0 && stageResults[idx-1] && (
+                  <div style={{
+                    background: theme.resultBg,
+                    borderRadius: 8,
+                    boxShadow: `0 1px 4px ${theme.shadow}`,
+                    padding: 10,
+                    marginBottom: 10,
+                    border: `1px solid ${theme.input}`,
+                    color: theme.text,
+                    fontSize: 15,
+                    opacity: 0.95,
+                  }}>
+                    <b>ملخص المرحلة السابقة:</b>
+                    <div style={{ whiteSpace: 'pre-line', marginTop: 4 }}>{stageResults[idx-1]}</div>
+                  </div>
+                )}
+                {/* إذا كانت المرحلة الأخيرة، غير نص الزر */}
+                <button
+                  type="button"
+                  disabled={stageLoading[idx]}
+                  onClick={() => handleAnalyzeStage(idx)}
+                  style={{ width: '100%', background: `linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color: '#fff', border: 'none', borderRadius: 8, padding: isMobile() ? '10px 0' : '14px 0', fontSize: isMobile() ? 16 : 19, fontWeight: 800, cursor: stageLoading[idx] ? 'not-allowed' : 'pointer', marginTop: 8, boxShadow: `0 2px 8px ${theme.accent}33`, letterSpacing: 1, transition: 'background 0.2s', position:'relative' }}
+                >
+                  {stageLoading[idx] ? (
+                    <span style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                      <span className="spinner" style={{display:'inline-block', width:20, height:20, border:'3px solid #fff', borderTop:`3px solid ${theme.accent2}`, borderRadius:'50%', animation:'spin 1s linear infinite', verticalAlign:'middle'}}></span>
+                      {idx === ALL_STAGES.length - 1 ? '⏳ جاري توليد العريضة النهائية...' : '⏳ جاري التحليل...'}
+                    </span>
+                  ) : (
+                    idx === ALL_STAGES.length - 1 ? '📜 توليد العريضة القانونية النهائية' : `📜 تحليل ${stage}`
+                  )}
+                </button>
+                {stageErrors[idx] && <div style={{ color: theme.errorText, background: theme.errorBg, borderRadius: 8, padding: 12, marginTop: 12, textAlign: 'center', fontWeight: 700, fontSize: 15, boxShadow: `0 1px 4px ${theme.errorText}22` }}>❌ {stageErrors[idx]}</div>}
+                {stageResults[idx] && (
+                  <div style={{
+                    background: theme.resultBg,
+                    borderRadius: 12,
+                    boxShadow: `0 2px 12px ${theme.shadow}`,
+                    padding: 18,
+                    marginTop: 16,
+                    border: `1.5px solid ${theme.input}`,
+                    color: theme.text,
+                    opacity: stageShowResult[idx] ? 1 : 0,
+                    transform: stageShowResult[idx] ? 'translateY(0)' : 'translateY(30px)',
+                    transition: 'opacity 0.7s, transform 0.7s',
+                  }}>
+                    <h3 style={{ color: theme.accent, marginBottom: 10, fontSize: 17, fontWeight: 800, letterSpacing: 1 }}>🔍 نتيجة التحليل</h3>
+                    <div style={{ whiteSpace: 'pre-line', fontSize: 16, lineHeight: 2 }}>{stageResults[idx]}</div>
+                  </div>
+                )}
+              </div>
+            ))}
+            <footer style={{ textAlign: 'center', color: '#888', marginTop: 32, fontSize: 15 }}>
+              &copy; {new Date().getFullYear()} منصة التحليل القانوني الذكي
+              <div style={{marginTop:18, background:'#fffbe6', color:'#b7791f', borderRadius:8, padding:'10px 18px', display:'inline-block', fontWeight:700, fontSize:14, boxShadow:'0 1px 4px #b7791f22'}}>
+                ⚠️ جميع بياناتك (القضايا والمفاتيح) تحفظ محليًا على جهازك فقط ولا يتم رفعها إلى أي خادم.
+                <button onClick={async () => { await clearAllCases(); await idbSet('legal_dark_mode', '0'); window.location.reload(); }} style={{marginRight:12, background:'#ff6b6b', color:'#fff', border:'none', borderRadius:8, padding:'6px 16px', fontWeight:800, fontSize:14, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b22', marginLeft:8}}>مسح كل البيانات</button>
+              </div>
+            </footer>
+          </main>
+      </div>
+      <style>{`
+        @keyframes spin { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);} }
+      `}</style>
+    </>
   );
 } 

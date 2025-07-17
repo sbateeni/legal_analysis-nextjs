@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { saveCases, loadCases } from '../utils/db';
+import { saveAllCases, getAllCases, clearAllCases, loadApiKey } from '../utils/db';
 import { useRouter } from 'next/router';
+import { set as idbSet, get as idbGet } from 'idb-keyval';
 
 const STAGES = [
   'المرحلة الأولى: تحديد المشكلة القانونية',
@@ -86,34 +87,19 @@ export default function History() {
 
   // تحويل البيانات القديمة (history) إلى بنية قضايا عند أول تحميل
   useEffect(() => {
-    const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('legal_dark_mode') : null;
-    if (savedTheme === '1') setDarkMode(true);
+    idbGet('legal_dark_mode').then((savedTheme) => {
+      if (savedTheme === '1') setDarkMode(true);
+    });
     // جلب القضايا من IndexedDB فقط
-    loadCases().then(dbCases => {
+    getAllCases().then((dbCases: Case[]) => {
       if (dbCases && dbCases.length > 0) {
-        // تأكد أن كل قضية تحتوي على مصفوفة chats
-        setCases(dbCases.map(c => ({ ...c, chats: c.chats || [] })));
-      } else {
-        // تحويل البيانات القديمة (مرة واحدة فقط)
-        const savedHistory = typeof window !== 'undefined' ? localStorage.getItem('legal_analysis_history') : null;
-        if (savedHistory) {
-          const history: AnalysisHistoryItem[] = JSON.parse(savedHistory);
-          const cases: Case[] = history.map((item) => ({
-            id: item.id,
-            name: `قضية: ${item.input.split(' ').slice(0, 5).join(' ')}...`,
-            createdAt: item.date,
-            stages: [item],
-          }));
-          setCases(cases);
-          saveCases(cases);
-          localStorage.removeItem('legal_analysis_history');
-        }
+        setCases(dbCases.map((c: Case) => ({ ...c, chats: c.chats || [] })));
       }
     });
   }, []);
 
   useEffect(() => {
-    saveCases(cases);
+    saveAllCases(cases);
   }, [cases]);
 
   const handleDeleteCase = (id: string) => {
@@ -172,14 +158,61 @@ export default function History() {
   // واجهة القضايا
   return (
     <div style={{ fontFamily: 'Tajawal, Arial, sans-serif', direction: 'rtl', minHeight: '100vh', background: theme.background, color: theme.text, padding: 0, margin: 0, transition: 'background 0.4s' }}>
+      {/* شريط علوي */}
+      <header style={{
+        width: '100%',
+        background: `linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`,
+        color: '#fff',
+        padding: isMobile() ? '16px 0 10px 0' : '18px 0 12px 0',
+        marginBottom: 32,
+        boxShadow: '0 2px 8px #0002',
+        textAlign: 'center',
+        letterSpacing: 1,
+        fontWeight: 800,
+        fontSize: isMobile() ? 22 : 26,
+        borderBottomLeftRadius: 18,
+        borderBottomRightRadius: 18,
+        display: 'block',
+        position: 'relative',
+      }}>
+        <nav style={{display:'flex', flexDirection:'column', alignItems:'center', gap: isMobile() ? 10 : 14}}>
+          <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:12}}>
+            <span style={{fontSize: isMobile() ? 26 : 30}}>📑</span>
+            <span>قائمة القضايا القانونية</span>
+          </div>
+          <div style={{display:'flex', flexDirection:'row', alignItems:'center', justifyContent:'center', gap:isMobile() ? 8 : 18, marginTop: isMobile() ? 2 : 6}}>
+            <button
+              onClick={() => setDarkMode(dm => !dm)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', fontSize: isMobile() ? 22 : 26, color: '#fff', outline: 'none',
+                transition: 'color 0.2s',
+                padding: 0,
+              }}
+              aria-label="تبديل الوضع الليلي"
+            >
+              {darkMode ? '🌙' : '☀️'}
+            </button>
+            <button
+              onClick={() => router.push('/')} 
+              style={{background:'#fff', color:theme.accent2, border:'none', borderRadius:8, padding:isMobile()?'4px 10px':'4px 16px', fontWeight:700, fontSize:isMobile()?14:16, cursor:'pointer', boxShadow:'0 1px 4px #0002', marginRight:8, letterSpacing:1, transition:'background 0.2s'}}>
+              الصفحة الرئيسية
+            </button>
+            <button
+              onClick={async () => { await clearAllCases(); await idbSet('legal_dark_mode', '0'); window.location.reload(); }}
+              style={{background:'#ff6b6b', color:'#fff', border:'none', borderRadius:8, padding:isMobile()?'4px 10px':'4px 16px', fontWeight:700, fontSize:isMobile()?14:16, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b22', marginRight:8, letterSpacing:1, transition:'background 0.2s'}}>
+              🗑️ مسح كل البيانات
+            </button>
+          </div>
+        </nav>
+      </header>
       <main style={{
-        maxWidth: 900,
+        maxWidth: 950,
         width: '100%',
         margin: '0 auto',
         padding: isMobile() ? '1rem 0.5rem' : '2.5rem 1rem',
       }}>
-        {/* أزرار التصدير والاستيراد + البحث */}
-        <div style={{display:'flex', flexDirection: isMobile() ? 'column' : 'row', gap:14, justifyContent:'center', alignItems:'center', marginBottom:18}}>
+        {/* Card البحث والتصدير/الاستيراد */}
+        <div style={{background:theme.card, borderRadius:14, boxShadow:`0 2px 12px ${theme.shadow}`, border:`1.5px solid ${theme.border}`, padding:isMobile()?12:22, marginBottom:28, display:'flex', flexDirection:isMobile()?'column':'row', alignItems:'center', gap:14, justifyContent:'center'}}>
           <button onClick={handleExport} style={{background:`linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color:'#fff', border:'none', borderRadius:8, padding:'10px 22px', fontWeight:800, fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px #4f46e522', letterSpacing:1, transition:'background 0.2s'}}>⬇️ تصدير القضايا</button>
           <label style={{background:`linear-gradient(90deg, ${theme.accent} 0%, ${theme.accent2} 100%)`, color:'#fff', borderRadius:8, padding:'10px 22px', fontWeight:800, fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px #6366f122', display:'inline-block', letterSpacing:1, transition:'background 0.2s'}}>
             ⬆️ استيراد قضايا
@@ -187,45 +220,46 @@ export default function History() {
           </label>
           <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 ابحث عن قضية..." style={{flex:1, minWidth:180, maxWidth:320, borderRadius:8, border:`1.5px solid ${theme.accent2}`, padding:'10px 14px', fontSize:15, outline:'none', background:darkMode?'#232946':'#fff', color:theme.text, boxShadow:'0 1px 4px #6366f122'}} />
         </div>
+        {/* عرض القضايا */}
         <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:10, marginBottom:18}}>
           <span style={{fontSize:32}}>📑</span>
           <h1 style={{ color: theme.accent, fontWeight: 900, fontSize: 28, margin: 0, letterSpacing: 1 }}>قائمة القضايا</h1>
         </div>
         {cases.length === 0 ? (
-          <div style={{textAlign:'center', color:theme.accent2, fontSize:18, marginTop:40}}>لا يوجد قضايا محفوظة بعد.</div>
+          <div style={{textAlign:'center', color:theme.accent2, fontSize:18, marginTop:40, background:theme.card, borderRadius:12, padding:24, boxShadow:`0 1px 8px ${theme.shadow}`}}>لا يوجد قضايا محفوظة بعد.</div>
         ) : selectedCaseId ? (
           // تفاصيل القضية المختارة
           <div style={{marginBottom:32}}>
             <button onClick={() => setSelectedCaseId(null)} style={{marginBottom:18, background:theme.accent2, color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:16, cursor:'pointer', boxShadow:'0 1px 4px #6366f122'}}>← العودة للقضايا</button>
             {cases.filter(c => c.id === selectedCaseId).map(c => (
-              <div key={c.id} style={{background:theme.card, borderRadius:16, boxShadow:`0 2px 12px ${theme.shadow}`, border:`1.5px solid ${theme.border}`, padding:isMobile()?12:24, marginBottom:18}}>
-                <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:10}}>
+              <div key={c.id} style={{background:theme.card, borderRadius:18, boxShadow:`0 2px 16px ${theme.shadow}`, border:`2px solid ${theme.accent2}`, padding:isMobile()?14:32, marginBottom:18}}>
+                <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:10, flexWrap:'wrap'}}>
                   {editNameId === c.id ? (
                     <>
                       <input
                         type="text"
                         value={editNameValue}
                         onChange={e => setEditNameValue(e.target.value)}
-                        style={{fontWeight:800, fontSize:22, color:theme.accent, border:'1px solid '+theme.accent2, borderRadius:8, padding:'4px 10px', outline:'none', width: isMobile() ? 180 : 320}}
+                        style={{fontWeight:800, fontSize:22, color:theme.accent, border:'1.5px solid '+theme.accent2, borderRadius:8, padding:'4px 10px', outline:'none', width: isMobile() ? 180 : 320}}
                       />
                       <button onClick={() => {
                         setCases(cs => cs.map(cc => cc.id === c.id ? {...cc, name: editNameValue} : cc));
                         setEditNameId(null);
-                      }} style={{background:theme.accent2, color:'#fff', border:'none', borderRadius:8, padding:'6px 14px', fontWeight:700, fontSize:15, cursor:'pointer'}}>حفظ</button>
+                      }} style={{background:theme.accent2, color:'#fff', border:'none', borderRadius:8, padding:'6px 14px', fontWeight:700, fontSize:15, cursor:'pointer', marginRight:6}}>حفظ</button>
                       <button onClick={() => setEditNameId(null)} style={{background:'#eee', color:theme.accent2, border:'none', borderRadius:8, padding:'6px 14px', fontWeight:700, fontSize:15, cursor:'pointer'}}>إلغاء</button>
                     </>
                   ) : (
                     <>
-                      <span style={{fontWeight:800, fontSize:22, color:theme.accent}}>{c.name}</span>
-                      <button onClick={() => {setEditNameId(c.id); setEditNameValue(c.name);}} style={{background:theme.accent2, color:'#fff', border:'none', borderRadius:8, padding:'5px 12px', fontWeight:700, fontSize:14, cursor:'pointer'}}>تعديل الاسم</button>
+                      <span style={{fontWeight:900, fontSize:26, color:theme.accent}}>{c.name}</span>
+                      <button onClick={() => {setEditNameId(c.id); setEditNameValue(c.name);}} style={{background:theme.accent2, color:'#fff', border:'none', borderRadius:8, padding:'5px 12px', fontWeight:700, fontSize:15, cursor:'pointer', marginRight:8}}>تعديل الاسم</button>
                     </>
                   )}
                 </div>
                 <div style={{fontSize:15, color:'#888', marginBottom:18}}>تاريخ الإنشاء: {new Date(c.createdAt).toLocaleString('ar-EG')}</div>
                 <div style={{display:'flex', flexDirection:'column', gap:18}}>
                   {c.stages.map((stage) => (
-                    <div key={stage.id} style={{background:theme.resultBg, borderRadius:12, boxShadow:`0 1px 6px ${theme.shadow}`, border:`1px solid ${theme.border}`, padding:isMobile()?10:18, position:'relative'}}>
-                      <div style={{color:theme.accent2, fontWeight:700, fontSize:17, marginBottom:6}}><span style={{fontSize:18}}>🧩</span> {STAGES[stage.stageIndex]}</div>
+                    <div key={stage.id} style={{background:theme.resultBg, borderRadius:12, boxShadow:`0 1px 6px ${theme.shadow}`, border:`1.5px solid ${theme.accent2}`, padding:isMobile()?10:18, position:'relative', marginBottom:8}}>
+                      <div style={{color:theme.accent2, fontWeight:800, fontSize:17, marginBottom:6}}><span style={{fontSize:18}}>🧩</span> {STAGES[stage.stageIndex]}</div>
                       <div style={{fontWeight:600, color:theme.accent, marginBottom:4}}>النص المدخل:</div>
                       <div style={{background:darkMode?'#181a2a':'#f5f7ff', borderRadius:8, padding:'8px 12px', fontSize:16, whiteSpace:'pre-line', border:`1px solid ${theme.border}`, marginBottom:8}}>{stage.input}</div>
                       <div style={{fontWeight:600, color:theme.accent, marginBottom:4}}>مخرجات التحليل:</div>
@@ -235,32 +269,36 @@ export default function History() {
                     </div>
                   ))}
                   {/* واجهة المحادثة */}
-                  <ChatBox caseObj={c} setCases={setCases} theme={theme} darkMode={darkMode} />
+                  <div style={{marginTop:10}}>
+                    <div style={{background:theme.resultBg, borderRadius:12, boxShadow:`0 1px 6px ${theme.shadow}`, border:`1.5px solid ${theme.accent2}`, padding:isMobile()?10:18}}>
+                      <ChatBox caseObj={c} setCases={setCases} theme={theme} darkMode={darkMode} />
+                    </div>
+                  </div>
                 </div>
-                <button onClick={() => handleDeleteCase(c.id)} style={{marginTop:18, background:'#ff6b6b', color:'#fff', border:'none', borderRadius:8, padding:isMobile()?'7px 14px':'8px 22px', fontWeight:700, fontSize:isMobile()?14:16, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b33', transition:'background 0.2s'}}>حذف القضية</button>
+                <button onClick={() => handleDeleteCase(c.id)} style={{marginTop:18, background:'#ff6b6b', color:'#fff', border:'none', borderRadius:8, padding:isMobile()?'7px 14px':'8px 22px', fontWeight:800, fontSize:isMobile()?15:17, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b33', transition:'background 0.2s'}}>حذف القضية</button>
               </div>
             ))}
           </div>
         ) : (
-          // عرض القضايا في مربعات
-          <div style={{display:'flex', flexWrap:'wrap', gap:24, justifyContent:'center'}}>
+          // عرض القضايا في Grid متجاوب
+          <div style={{display:'grid', gridTemplateColumns: isMobile() ? '1fr' : '1fr 1fr 1fr', gap:24, justifyContent:'center'}}>
             {cases.filter(c => c.name.toLowerCase().includes(search.toLowerCase())).map(c => (
-              <div key={c.id} style={{background:theme.card, borderRadius:16, boxShadow:`0 2px 12px ${theme.shadow}`, border:`1.5px solid ${theme.border}`, padding:isMobile()?12:24, width: isMobile() ? '100%' : 340, cursor:'pointer', transition:'box-shadow 0.2s', position:'relative'}} onClick={() => setSelectedCaseId(c.id)}>
-                <div style={{fontWeight:800, fontSize:20, color:theme.accent, marginBottom:8}}>{c.name}</div>
-                <div style={{fontSize:14, color:'#888', marginBottom:10}}>تاريخ الإنشاء: {new Date(c.createdAt).toLocaleString('ar-EG')}</div>
-                <div style={{fontSize:15, color:theme.accent2}}>عدد المراحل: {c.stages.length}</div>
+              <div key={c.id} style={{background:theme.card, borderRadius:16, boxShadow:`0 2px 12px ${theme.shadow}`, border:`2px solid ${theme.accent2}`, padding:isMobile()?12:24, cursor:'pointer', transition:'box-shadow 0.2s, border 0.2s', position:'relative', minHeight:170, display:'flex', flexDirection:'column', justifyContent:'space-between'}} onClick={() => setSelectedCaseId(c.id)}>
+                <div>
+                  <div style={{fontWeight:900, fontSize:22, color:theme.accent, marginBottom:8, textOverflow:'ellipsis', overflow:'hidden', whiteSpace:'nowrap'}}>{c.name}</div>
+                  <div style={{fontSize:14, color:'#888', marginBottom:10}}>تاريخ الإنشاء: {new Date(c.createdAt).toLocaleString('ar-EG')}</div>
+                  <div style={{fontSize:15, color:theme.accent2, marginBottom:8}}>عدد المراحل: {c.stages.length}</div>
+                </div>
                 <button onClick={e => {e.stopPropagation(); handleDeleteCase(c.id);}} style={{position:'absolute', left:18, top:18, background:`linear-gradient(90deg, #ff6b6b 0%, #ffb6b6 100%)`, color:'#fff', border:'none', borderRadius:8, padding:isMobile()?'7px 14px':'8px 18px', fontWeight:800, fontSize:isMobile()?14:16, cursor:'pointer', boxShadow:'0 1px 4px #ff6b6b33', transition:'background 0.2s'}}>حذف</button>
               </div>
             ))}
           </div>
         )}
-        <div style={{ textAlign: 'center', color: theme.accent2, fontSize: 16, marginTop: 32 }}>
-          <button
-            onClick={() => router.push('/')}
-            style={{background:`linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color:'#fff', border:'none', borderRadius:8, padding:'8px 22px', fontWeight:800, fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px #6366f122', marginBottom:10, letterSpacing:1, transition:'background 0.2s'}}>
-            ← العودة للصفحة الرئيسية
-          </button>
-        </div>
+        {/* فاصل سفلي وfooter */}
+        <div style={{height:40}}></div>
+        <footer style={{ textAlign: 'center', color: '#888', marginTop: 32, fontSize: 15, borderTop:`1.5px solid ${theme.border}`, paddingTop:18 }}>
+          &copy; {new Date().getFullYear()} منصة التحليل القانوني الذكي
+        </footer>
       </main>
     </div>
   );
@@ -272,9 +310,7 @@ function ChatBox({ caseObj, setCases, theme, darkMode }: { caseObj: Case, setCas
   const [error, setError] = useState<string|null>(null);
   const [localApiKey, setLocalApiKey] = useState('');
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setLocalApiKey(window.localStorage.getItem('gemini_api_key') || '');
-    }
+    loadApiKey().then(val => setLocalApiKey(val || ''));
   }, []);
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
