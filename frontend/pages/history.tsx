@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { saveCases, loadCases } from '../utils/db';
+import { useRouter } from 'next/router';
 
 const STAGES = [
   'المرحلة الأولى: تحديد المشكلة القانونية',
@@ -77,6 +78,7 @@ export default function History() {
   const [editNameValue, setEditNameValue] = useState<string>('');
   // بحث عن القضايا
   const [search, setSearch] = useState('');
+  const router = useRouter();
   // حذف المتغيرات غير المستخدمة:
   // const [newStageIndex, setNewStageIndex] = useState<number>(0);
   // const [newStageInput, setNewStageInput] = useState<string>('');
@@ -253,7 +255,11 @@ export default function History() {
           </div>
         )}
         <div style={{ textAlign: 'center', color: theme.accent2, fontSize: 16, marginTop: 32 }}>
-          <button onClick={()=>setSelectedCaseId(null)} style={{background:`linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color:'#fff', border:'none', borderRadius:8, padding:'8px 22px', fontWeight:800, fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px #6366f122', marginBottom:10, letterSpacing:1, transition:'background 0.2s'}}>← العودة للصفحة الرئيسية</button>
+          <button
+            onClick={() => router.push('/')}
+            style={{background:`linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color:'#fff', border:'none', borderRadius:8, padding:'8px 22px', fontWeight:800, fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px #6366f122', marginBottom:10, letterSpacing:1, transition:'background 0.2s'}}>
+            ← العودة للصفحة الرئيسية
+          </button>
         </div>
       </main>
     </div>

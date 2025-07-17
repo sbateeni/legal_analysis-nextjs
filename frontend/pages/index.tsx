@@ -18,6 +18,9 @@ const STAGES = [
   'المرحلة الثانية عشرة: تقديم التوصيات',
 ];
 
+const FINAL_STAGE = 'المرحلة الثالثة عشرة: العريضة القانونية النهائية';
+const ALL_STAGES = [...STAGES, FINAL_STAGE];
+
 const lightTheme = {
   background: 'linear-gradient(135deg, #e0e7ff 0%, #f7f7fa 100%)',
   card: '#fff',
@@ -72,10 +75,10 @@ export default function Home() {
   // لكل مرحلة: نص، نتيجة، تحميل، خطأ، إظهار نتيجة
   // مربع نص واحد فقط
   const [mainText, setMainText] = useState('');
-  const [stageResults, setStageResults] = useState<(string|null)[]>(() => Array(STAGES.length).fill(null));
-  const [stageLoading, setStageLoading] = useState<boolean[]>(() => Array(STAGES.length).fill(false));
-  const [stageErrors, setStageErrors] = useState<(string|null)[]>(() => Array(STAGES.length).fill(null));
-  const [stageShowResult, setStageShowResult] = useState<boolean[]>(() => Array(STAGES.length).fill(false));
+  const [stageResults, setStageResults] = useState<(string|null)[]>(() => Array(ALL_STAGES.length).fill(null));
+  const [stageLoading, setStageLoading] = useState<boolean[]>(() => Array(ALL_STAGES.length).fill(false));
+  const [stageErrors, setStageErrors] = useState<(string|null)[]>(() => Array(ALL_STAGES.length).fill(null));
+  const [stageShowResult, setStageShowResult] = useState<boolean[]>(() => Array(ALL_STAGES.length).fill(false));
 
   // حالة العريضة النهائية
   const [finalPetitionLoading, setFinalPetitionLoading] = useState(false);
@@ -117,6 +120,43 @@ export default function Home() {
 
   // دالة تحليل مرحلة واحدة
   const handleAnalyzeStage = async (idx: number) => {
+    // إذا كانت المرحلة الأخيرة (العريضة النهائية)
+    if (idx === ALL_STAGES.length - 1) {
+      setStageLoading(arr => arr.map((v, i) => i === idx ? true : v));
+      setStageErrors(arr => arr.map((v, i) => i === idx ? null : v));
+      setStageResults(arr => arr.map((v, i) => i === idx ? null : v));
+      setStageShowResult(arr => arr.map((v, i) => i === idx ? false : v));
+      if (!apiKey) {
+        setStageErrors(arr => arr.map((v, i) => i === idx ? 'يرجى إدخال مفتاح Gemini API الخاص بك أولاً.' : v));
+        setStageLoading(arr => arr.map((v, i) => i === idx ? false : v));
+        return;
+      }
+      const summaries = stageResults.slice(0, idx).filter(r => !!r);
+      if (summaries.length === 0) {
+        setStageErrors(arr => arr.map((v, i) => i === idx ? 'يرجى تحليل المراحل أولاً قبل توليد العريضة النهائية.' : v));
+        setStageLoading(arr => arr.map((v, i) => i === idx ? false : v));
+        return;
+      }
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: mainText, stageIndex: -1, apiKey, previousSummaries: summaries, finalPetition: true }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setStageResults(arr => arr.map((v, i) => i === idx ? data.analysis : v));
+          setTimeout(() => setStageShowResult(arr => arr.map((v, i) => i === idx ? true : v)), 100);
+        } else {
+          setStageErrors(arr => arr.map((v, i) => i === idx ? (data.error || 'حدث خطأ أثناء توليد العريضة النهائية') : v));
+        }
+      } catch {
+        setStageErrors(arr => arr.map((v, i) => i === idx ? 'تعذر الاتصال بالخادم' : v));
+      } finally {
+        setStageLoading(arr => arr.map((v, i) => i === idx ? false : v));
+      }
+      return;
+    }
     setStageLoading(arr => arr.map((v, i) => i === idx ? true : v));
     setStageErrors(arr => arr.map((v, i) => i === idx ? null : v));
     setStageResults(arr => arr.map((v, i) => i === idx ? null : v));
@@ -133,7 +173,16 @@ export default function Home() {
       return;
     }
     // جمع ملخصات المراحل السابقة (النتائج غير الفارغة فقط)
-    const previousSummaries = stageResults.slice(0, idx).filter(r => !!r);
+    // منطق تراكمي: كل مرحلة تعتمد على جميع النتائج السابقة (حتى الفارغة، لكن يمكن تجاهل الفارغة)
+    let previousSummaries = stageResults.slice(0, idx).filter(r => !!r);
+    // حدود الطول (تقريبي: 8000 tokens ≈ 24,000 حرف)
+    const MAX_CHARS = 24000;
+    let totalLength = previousSummaries.reduce((acc, cur) => acc + (cur?.length || 0), 0);
+    // إذا تجاوز الطول، احذف أقدم النتائج حتى لا يتجاوز الحد
+    while (totalLength > MAX_CHARS && previousSummaries.length > 1) {
+      previousSummaries = previousSummaries.slice(1);
+      totalLength = previousSummaries.reduce((acc, cur) => acc + (cur?.length || 0), 0);
+    }
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
@@ -149,7 +198,7 @@ export default function Home() {
         const newStage = {
           id: `${idx}-${btoa(unescape(encodeURIComponent(text))).slice(0,8)}-${Date.now()}`,
           stageIndex: idx,
-          stage: STAGES[idx],
+          stage: ALL_STAGES[idx],
           input: text,
           output: data.analysis,
           date: new Date().toISOString(),
@@ -247,7 +296,7 @@ export default function Home() {
             const finalStage = {
               id: `final-${Date.now()}`,
               stageIndex: 999,
-              stage: 'العريضة النهائية',
+              stage: FINAL_STAGE,
               input: mainText,
               output: data.analysis,
               date: new Date().toISOString(),
@@ -388,7 +437,7 @@ export default function Home() {
             />
           </div>
           {/* عرض جميع المراحل */}
-          {STAGES.map((stage, idx) => (
+          {ALL_STAGES.map((stage, idx) => (
             <div key={stage} style={{
               background: theme.card,
               borderRadius: 14,
@@ -398,13 +447,31 @@ export default function Home() {
               border: `1.5px solid ${theme.border}`,
             }}>
               <div style={{ fontWeight: 800, color: theme.accent, fontSize: 18, marginBottom: 8 }}>{stage}</div>
+              {/* ملخص التحليل السابق */}
+              {idx > 0 && stageResults[idx-1] && (
+                <div style={{
+                  background: theme.resultBg,
+                  borderRadius: 8,
+                  boxShadow: `0 1px 4px ${theme.shadow}`,
+                  padding: 10,
+                  marginBottom: 10,
+                  border: `1px solid ${theme.input}`,
+                  color: theme.text,
+                  fontSize: 15,
+                  opacity: 0.95,
+                }}>
+                  <b>ملخص المرحلة السابقة:</b>
+                  <div style={{ whiteSpace: 'pre-line', marginTop: 4 }}>{stageResults[idx-1]}</div>
+                </div>
+              )}
+              {/* إذا كانت المرحلة الأخيرة، غير نص الزر */}
               <button
                 type="button"
                 disabled={stageLoading[idx]}
                 onClick={() => handleAnalyzeStage(idx)}
                 style={{ width: '100%', background: `linear-gradient(90deg, ${theme.accent2} 0%, ${theme.accent} 100%)`, color: '#fff', border: 'none', borderRadius: 8, padding: isMobile() ? '10px 0' : '14px 0', fontSize: isMobile() ? 16 : 19, fontWeight: 800, cursor: stageLoading[idx] ? 'not-allowed' : 'pointer', marginTop: 8, boxShadow: `0 2px 8px ${theme.accent}33`, letterSpacing: 1, transition: 'background 0.2s' }}
               >
-                {stageLoading[idx] ? '⏳ جاري التحليل...' : `🚀 تحليل ${stage}`}
+                {stageLoading[idx] ? (idx === ALL_STAGES.length - 1 ? '⏳ جاري توليد العريضة النهائية...' : '⏳ جاري التحليل...') : (idx === ALL_STAGES.length - 1 ? '📜 توليد العريضة القانونية النهائية' : `📜 تحليل ${stage}`)}
               </button>
               {stageErrors[idx] && <div style={{ color: theme.errorText, background: theme.errorBg, borderRadius: 8, padding: 12, marginTop: 12, textAlign: 'center', fontWeight: 700, fontSize: 15, boxShadow: `0 1px 4px ${theme.errorText}22` }}>❌ {stageErrors[idx]}</div>}
               {stageResults[idx] && (
@@ -427,50 +494,6 @@ export default function Home() {
             </div>
           ))}
           <footer style={{ textAlign: 'center', color: '#888', marginTop: 32, fontSize: 15 }}>
-            {/* زر توليد العريضة النهائية */}
-            <div style={{ marginBottom: 24 }}>
-              <button
-                type="button"
-                onClick={handleGenerateFinalPetition}
-                disabled={finalPetitionLoading}
-                style={{
-                  width: '100%',
-                  background: 'linear-gradient(90deg, #6366f1 0%, #4f46e5 100%)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 8,
-                  padding: isMobile() ? '12px 0' : '16px 0',
-                  fontSize: isMobile() ? 17 : 20,
-                  fontWeight: 900,
-                  cursor: finalPetitionLoading ? 'not-allowed' : 'pointer',
-                  marginTop: 8,
-                  boxShadow: '0 2px 8px #6366f133',
-                  letterSpacing: 1,
-                  transition: 'background 0.2s',
-                }}
-              >
-                {finalPetitionLoading ? '⏳ جاري توليد العريضة النهائية...' : '📜 توليد العريضة القانونية النهائية'}
-              </button>
-              {finalPetitionError && <div style={{ color: '#e53e3e', background: '#fff0f0', borderRadius: 8, padding: 12, marginTop: 12, textAlign: 'center', fontWeight: 700, fontSize: 15, boxShadow: '0 1px 4px #e53e3e22' }}>❌ {finalPetitionError}</div>}
-              {finalPetitionResult && (
-                <div style={{
-                  background: '#f5f7ff',
-                  borderRadius: 12,
-                  boxShadow: '0 2px 12px #6366f122',
-                  padding: 18,
-                  marginTop: 16,
-                  border: '1.5px solid #c7d2fe',
-                  color: '#222',
-                  whiteSpace: 'pre-line',
-                  fontSize: 17,
-                  lineHeight: 2,
-                  textAlign: 'right',
-                }}>
-                  <h3 style={{ color: '#4f46e5', marginBottom: 10, fontSize: 18, fontWeight: 800, letterSpacing: 1 }}>📜 العريضة القانونية النهائية</h3>
-                  {finalPetitionResult}
-                </div>
-              )}
-            </div>
             &copy; {new Date().getFullYear()} منصة التحليل القانوني الذكي
           </footer>
         </main>

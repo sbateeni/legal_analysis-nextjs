@@ -206,7 +206,7 @@ function getStagePrompt(stageName: string, text: string, previousSummaries?: str
   const stageInfo = STAGES_DETAILS[stageName];
   let previousText = '';
   if (previousSummaries && previousSummaries.length > 0) {
-    previousText = `\nملخص المراحل السابقة:\n${previousSummaries.map((s, i) => `- المرحلة ${i + 1}: ${s}`).join('\n')}`;
+    previousText = `\nملخص المراحل السابقة (يجب أن يُبنى التحليل الحالي عليها بشكل تراكمي ومتسلسل):\n${previousSummaries.map((s, i) => `- المرحلة ${i + 1}: ${s}`).join('\n')}`;
   }
   return `
 ${stageName}
@@ -223,10 +223,11 @@ ${stageInfo?.questions?.map((q) => '- ' + q).join('\n')}
 ${text}
 
 قم بتحليل النص القانوني وفقًا لهذه المرحلة في إطار النظام القانوني الفلسطيني، مع التركيز على:
-1. الإجابة على الأسئلة الرئيسية المطروحة في إطار القوانين الفلسطينية
-2. تحليل النقاط الرئيسية المحددة وفقاً للنظام القانوني الفلسطيني
-3. تقديم تحليل مفصل ومدعم بالأسناد القانونية الفلسطينية
-4. التحقق من صحة المعلومات القانونية بدقة وتجنب أي لغط أو أخطاء قانونية. إذا لم تكن متأكدًا من معلومة، وضّح ذلك أو اذكر مصدرها إن أمكن.
+1. بناء التحليل الحالي على ملخصات المراحل السابقة بشكل تراكمي ومتسلسل.
+2. الإجابة على الأسئلة الرئيسية المطروحة في إطار القوانين الفلسطينية
+3. تحليل النقاط الرئيسية المحددة وفقاً للنظام القانوني الفلسطيني
+4. تقديم تحليل مفصل ومدعم بالأسناد القانونية الفلسطينية
+5. التحقق من صحة المعلومات القانونية بدقة وتجنب أي لغط أو أخطاء قانونية. إذا لم تكن متأكدًا من معلومة، وضّح ذلك أو اذكر مصدرها إن أمكن.
 `;
 }
 
@@ -237,6 +238,19 @@ async function callGeminiAPI(prompt: string, apiKey: string): Promise<string> {
   const result = await model.generateContent(prompt);
   const response = await result.response;
   return response.text();
+}
+
+// حدود الطول (تقريبي: 8000 tokens ≈ 24,000 حرف)
+const MAX_CHARS = 24000;
+
+function trimSummaries(summaries: string[]): string[] {
+  let totalLength = summaries.reduce((acc, cur) => acc + (cur?.length || 0), 0);
+  let trimmed = [...summaries];
+  while (totalLength > MAX_CHARS && trimmed.length > 1) {
+    trimmed = trimmed.slice(1);
+    totalLength = trimmed.reduce((acc, cur) => acc + (cur?.length || 0), 0);
+  }
+  return trimmed;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -254,6 +268,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!previousSummaries || !Array.isArray(previousSummaries) || previousSummaries.length === 0) {
       return res.status(400).json({ error: 'يرجى تحليل المراحل أولاً.' });
     }
+    // تقطيع الملخصات إذا تجاوزت الحد
+    const trimmedSummaries = trimSummaries(previousSummaries);
     // بناء برومبت خاص للعريضة النهائية
     const petitionPrompt = `
 أنت خبير قانوني فلسطيني محترف. بناءً على ملخصات التحليل التالية لكل مرحلة من مراحل القضية، قم بصياغة عريضة قانونية نهائية رسمية وجاهزة للتقديم للمحكمة، بحيث تشمل جميع الجوانب القانونية والوقائعية، وتكون دقيقة وخالية من الأخطاء القانونية أو اللغط، وتستند إلى القوانين الفلسطينية ذات الصلة:
@@ -262,7 +278,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 ${text}
 
 ملخصات المراحل التحليلية:
-${previousSummaries.map((s, i) => `- المرحلة ${i + 1}: ${s}`).join('\n')}
+${trimmedSummaries.map((s, i) => `- المرحلة ${i + 1}: ${s}`).join('\n')}
 
 تعليمات هامة:
 - ابدأ العريضة بمقدمة رسمية مناسبة.
@@ -294,7 +310,9 @@ ${previousSummaries.map((s, i) => `- المرحلة ${i + 1}: ${s}`).join('\n')}
   }
 
   const stage = STAGES[stageIndex];
-  const prompt = getStagePrompt(stage, text, previousSummaries);
+  // تقطيع الملخصات إذا تجاوزت الحد
+  const trimmedSummaries = trimSummaries(previousSummaries || []);
+  const prompt = getStagePrompt(stage, text, trimmedSummaries);
 
   try {
     const analysis = await callGeminiAPI(prompt, apiKey);
