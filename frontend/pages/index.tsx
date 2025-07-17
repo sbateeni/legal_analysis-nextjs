@@ -67,6 +67,7 @@ type AnalysisHistoryItem = {
 export default function Home() {
   // إزالة كل كود متعلق بالجلسة أو زر تسجيل الدخول/الخروج
   const [apiKey, setApiKey] = useState('');
+  const [caseNameInput, setCaseNameInput] = useState('');
   const [darkMode, setDarkMode] = useState(false);
   const [localStorageError] = useState(false);
   const prevApiKey = useRef("");
@@ -194,7 +195,7 @@ export default function Home() {
         setStageResults(arr => arr.map((v, i) => i === idx ? data.analysis : v));
         setTimeout(() => setStageShowResult(arr => arr.map((v, i) => i === idx ? true : v)), 100);
         // حفظ التحليل في نفس القضية
-        const caseName = `قضية: ${text.split(' ').slice(0, 5).join(' ')}...`;
+        const caseName = caseNameInput.trim() ? caseNameInput.trim() : `قضية بدون اسم - ${Date.now()}`;
         const newStage = {
           id: `${idx}-${btoa(unescape(encodeURIComponent(text))).slice(0,8)}-${Date.now()}`,
           stageIndex: idx,
@@ -207,14 +208,21 @@ export default function Home() {
         try {
           cases = JSON.parse(localStorage.getItem('legal_cases') || '[]');
         } catch { cases = []; }
-        const existingCaseIdx = cases.findIndex((c: { name: string }) => c.name === caseName);
-        if (existingCaseIdx !== -1) {
-          // أضف المرحلة الجديدة دائماً في نهاية المصفوفة دون استبدال
-          cases[existingCaseIdx].stages.push(newStage);
+        // ابحث عن قضية بنفس الاسم، لكن إذا وجدت، تحقق من id مختلف دائماً
+        const sameNameCases = cases.filter((c: { name: string }) => c.name === caseName);
+        let newCaseId = `${caseName}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+        if (sameNameCases.length > 0) {
+          // أنشئ قضية جديدة بنفس الاسم لكن id مختلف
+          cases.unshift({
+            id: newCaseId,
+            name: caseName,
+            createdAt: newStage.date,
+            stages: [newStage],
+          });
         } else {
           // أنشئ قضية جديدة
           cases.unshift({
-            id: newStage.id,
+            id: newCaseId,
             name: caseName,
             createdAt: newStage.date,
             stages: [newStage],
@@ -416,7 +424,18 @@ export default function Home() {
             <div style={{ color: '#888', fontSize: 13, marginTop: 6 }}>
               <span>يمكنك الحصول على المفتاح من <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{color:theme.accent, textDecoration:'underline'}}>Google AI Studio</a></span>
             </div>
-          </div>
+            {/* مربع إدخال اسم القضية */}
+            <div style={{ marginTop: 16 }}>
+              <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: theme.accent2, fontSize: 15 }}>📛 اسم القضية:</label>
+              <input
+                type="text"
+                value={caseNameInput}
+                onChange={e => setCaseNameInput(e.target.value)}
+                placeholder="أدخل اسم القضية (مثال: قضية إيجار 2024)"
+                style={{ width: '100%', borderRadius: 8, border: `1.5px solid ${theme.input}`, padding: isMobile() ? 8 : 12, fontSize: isMobile() ? 15 : 16, marginBottom: 0, outline: 'none', boxShadow: `0 1px 4px ${theme.shadow}`, background: darkMode ? '#181a2a' : '#fff', color: theme.text, transition: 'background 0.3s' }}
+                required
+              />
+            </div>
           {/* مربع نص واحد لتفاصيل القضية */}
           <div style={{
             background: theme.card,
