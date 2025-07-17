@@ -70,10 +70,10 @@ export default function About() {
           </div>
           <ol style={{ fontSize: 17, marginBottom: 18, lineHeight: 2, paddingRight: 24, background: darkMode ? '#181a2a' : '#f5f7ff', borderRadius: 12, padding: '18px 18px 18px 8px', border: `1px solid ${theme.border}` }}>
             <li>احصل على مفتاح Gemini API الخاص بك من <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{color:theme.accent, textDecoration:'underline'}}>Google AI Studio</a>.</li>
-            <li>أدخل المفتاح في خانة "مفتاح Gemini API" في الصفحة الرئيسية.</li>
+            <li>أدخل المفتاح في خانة &quot;مفتاح Gemini API&quot; في الصفحة الرئيسية.</li>
             <li>أدخل النص القانوني الذي ترغب في تحليله واسم القضية (اختياري).</li>
             <li>اختر المرحلة التحليلية المناسبة أو اتبع التسلسل التراكمي.</li>
-            <li>اضغط على "ابدأ التحليل" وستظهر لك النتيجة خلال ثوانٍ.</li>
+            <li>اضغط على &quot;ابدأ التحليل&quot; وستظهر لك النتيجة خلال ثوانٍ.</li>
             <li>يمكنك حفظ القضية، تصديرها أو استيرادها لاحقًا.</li>
           </ol>
           <div style={{margin:'32px 0 18px 0', display:'flex', alignItems:'center', gap:8}}>
@@ -106,7 +106,7 @@ export default function About() {
           ⚠️ جميع بياناتك (القضايا والمفاتيح) تحفظ محليًا على جهازك فقط ولا يتم رفعها إلى أي خادم.
         </div>
         <div style={{marginTop:24, textAlign:'center'}}>
-          <a href="/privacy" style={{color:theme.accent, textDecoration:'underline', fontWeight:700, fontSize:15}}>سياسة الخصوصية</a>
+          <Link href="/privacy" style={{color:theme.accent, textDecoration:'underline', fontWeight:700, fontSize:15}}>سياسة الخصوصية</Link>
         </div>
         {/* قسم توعوي حول الأمان والتخزين على Vercel */}
         <div style={{marginTop:36, background:'#e0e7ff', color:'#222', borderRadius:10, padding:'18px 18px', fontWeight:700, fontSize:15, boxShadow:'0 1px 4px #4f46e522', lineHeight:2}}>

@@ -65,6 +65,7 @@ interface ChatMessage {
   date: string;
 }
 
+// أضف دالة isMobile المحلية إذا لم تكن موجودة
 function isMobile() {
   if (typeof window === 'undefined') return false;
   return window.innerWidth <= 600;

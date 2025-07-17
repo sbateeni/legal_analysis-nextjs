@@ -82,9 +82,6 @@ export default function Home() {
   const [stageShowResult, setStageShowResult] = useState<boolean[]>(() => Array(ALL_STAGES.length).fill(false));
 
   // حالة العريضة النهائية
-  const [finalPetitionLoading, setFinalPetitionLoading] = useState(false);
-  const [finalPetitionError, setFinalPetitionError] = useState<string|null>(null);
-  const [finalPetitionResult, setFinalPetitionResult] = useState<string|null>(null);
 
   const theme = darkMode ? darkTheme : lightTheme;
 
@@ -205,7 +202,7 @@ export default function Home() {
           output: data.analysis,
           date: new Date().toISOString(),
         };
-        let newCaseId = `${caseName}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+        const newCaseId = `${caseName}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
         // أضف القضية مباشرة عبر دالة addCase
         await addCase({
           id: newCaseId,
@@ -224,61 +221,6 @@ export default function Home() {
       setStageErrors(arr => arr.map((v, i) => i === idx ? 'تعذر الاتصال بالخادم' : v));
     } finally {
       setStageLoading(arr => arr.map((v, i) => i === idx ? false : v));
-    }
-  };
-
-  // دالة توليد العريضة النهائية
-  const handleGenerateFinalPetition = async () => {
-    setFinalPetitionLoading(true);
-    setFinalPetitionError(null);
-    setFinalPetitionResult(null);
-    if (!apiKey) {
-      setFinalPetitionError('يرجى إدخال مفتاح Gemini API الخاص بك أولاً.');
-      setFinalPetitionLoading(false);
-      return;
-    }
-    const summaries = stageResults.filter(r => !!r);
-    if (summaries.length === 0) {
-      setFinalPetitionError('يرجى تحليل المراحل أولاً قبل توليد العريضة النهائية.');
-      setFinalPetitionLoading(false);
-      return;
-    }
-    try {
-      const res = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: mainText, stageIndex: -1, apiKey, previousSummaries: summaries, finalPetition: true }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setFinalPetitionResult(data.analysis);
-        // إضافة العريضة النهائية كمرحلة خاصة في آخر قضية محفوظة
-        try {
-          let cases = await getAllCases();
-          if (cases.length > 0) {
-            const lastCaseIdx = 0; // أحدث قضية في الأعلى
-            const finalStage = {
-              id: `final-${Date.now()}`,
-              stageIndex: 999,
-              stage: FINAL_STAGE,
-              input: mainText,
-              output: data.analysis,
-              date: new Date().toISOString(),
-            };
-            // تحقق من عدم وجود عريضة نهائية مكررة
-            if (!cases[lastCaseIdx].stages.some((s: AnalysisHistoryItem) => s.stageIndex === 999)) {
-              cases[lastCaseIdx].stages.push(finalStage);
-              await idbSet('legal_cases', JSON.stringify(cases));
-            }
-          }
-        } catch {}
-      } else {
-        setFinalPetitionError(data.error || 'حدث خطأ أثناء توليد العريضة النهائية');
-      }
-    } catch {
-      setFinalPetitionError('تعذر الاتصال بالخادم');
-    } finally {
-      setFinalPetitionLoading(false);
     }
   };
 

@@ -17,7 +17,7 @@ export default function Privacy() {
         <ul style={{fontSize:16, marginBottom:24, lineHeight:2, paddingRight:24, background:'#f5f7ff', borderRadius:12, padding:'18px 18px 18px 8px', border:'1px solid #e0e7ff'}}>
           <li>لا نقوم بجمع أو تخزين أي بيانات شخصية على خوادمنا.</li>
           <li>جميع العمليات الحسابية والتحليلية تتم محليًا في متصفحك.</li>
-          <li>يمكنك في أي وقت مسح جميع بياناتك من خلال زر "مسح كل البيانات" في الموقع.</li>
+          <li>يمكنك في أي وقت مسح جميع بياناتك من خلال زر &quot;مسح كل البيانات&quot; في الموقع.</li>
         </ul>
         <div style={{marginTop:32, textAlign:'center'}}>
           <Link href="/" style={{color:'#6366f1', textDecoration:'underline', fontWeight:700, fontSize:16}}>العودة للصفحة الرئيسية</Link>
