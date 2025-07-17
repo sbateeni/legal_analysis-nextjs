@@ -482,6 +482,39 @@ export default function Home() {
       <style>{`
         @keyframes spin { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);} }
       `}</style>
+      {/* Bottom Navigation للموبايل */}
+      {isMobile() && (
+        <nav style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          width: '100vw',
+          background: 'linear-gradient(90deg, #6366f1 0%, #4f46e5 100%)',
+          boxShadow: '0 -2px 12px #0002',
+          display: 'flex',
+          justifyContent: 'space-around',
+          alignItems: 'center',
+          padding: '7px 0 3px 0',
+          zIndex: 100,
+        }}>
+          <Link href="/" style={{color:'#fff', textAlign:'center', fontSize:22, flex:1, textDecoration:'none'}}>
+            <div>🏠</div>
+            <div style={{fontSize:11, marginTop:2}}>الرئيسية</div>
+          </Link>
+          <Link href="/history" style={{color:'#fff', textAlign:'center', fontSize:22, flex:1, textDecoration:'none'}}>
+            <div>📑</div>
+            <div style={{fontSize:11, marginTop:2}}>القضايا</div>
+          </Link>
+          <Link href="/about" style={{color:'#fff', textAlign:'center', fontSize:22, flex:1, textDecoration:'none'}}>
+            <div>❓</div>
+            <div style={{fontSize:11, marginTop:2}}>عن المنصة</div>
+          </Link>
+          <button onClick={() => setDarkMode(dm => !dm)} style={{background:'none', border:'none', color:'#fff', fontSize:22, flex:1, textAlign:'center', cursor:'pointer', outline:'none'}}>
+            <div>{darkMode ? '🌙' : '☀️'}</div>
+            <div style={{fontSize:11, marginTop:2}}>الوضع</div>
+          </button>
+        </nav>
+      )}
     </>
   );
 } 

@@ -300,6 +300,39 @@ export default function History() {
           &copy; {new Date().getFullYear()} منصة التحليل القانوني الذكي
         </footer>
       </main>
+      {/* Bottom Navigation للموبايل */}
+      {isMobile() && (
+        <nav style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          width: '100vw',
+          background: 'linear-gradient(90deg, #6366f1 0%, #4f46e5 100%)',
+          boxShadow: '0 -2px 12px #0002',
+          display: 'flex',
+          justifyContent: 'space-around',
+          alignItems: 'center',
+          padding: '7px 0 3px 0',
+          zIndex: 100,
+        }}>
+          <button onClick={() => router.push('/')} style={{color:'#fff', textAlign:'center', fontSize:22, flex:1, background:'none', border:'none', textDecoration:'none', cursor:'pointer'}}>
+            <div>🏠</div>
+            <div style={{fontSize:11, marginTop:2}}>الرئيسية</div>
+          </button>
+          <button onClick={() => router.push('/history')} style={{color:'#fff', textAlign:'center', fontSize:22, flex:1, background:'none', border:'none', textDecoration:'none', cursor:'pointer'}}>
+            <div>📑</div>
+            <div style={{fontSize:11, marginTop:2}}>القضايا</div>
+          </button>
+          <button onClick={() => router.push('/about')} style={{color:'#fff', textAlign:'center', fontSize:22, flex:1, background:'none', border:'none', textDecoration:'none', cursor:'pointer'}}>
+            <div>❓</div>
+            <div style={{fontSize:11, marginTop:2}}>عن المنصة</div>
+          </button>
+          <button onClick={() => setDarkMode(dm => !dm)} style={{background:'none', border:'none', color:'#fff', fontSize:22, flex:1, textAlign:'center', cursor:'pointer', outline:'none'}}>
+            <div>{darkMode ? '🌙' : '☀️'}</div>
+            <div style={{fontSize:11, marginTop:2}}>الوضع</div>
+          </button>
+        </nav>
+      )}
     </div>
   );
 }
